@@ -3,113 +3,79 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import pandas as pd
 
-st.set_page_config(page_title="Terminal Pro IA - Analistas", page_icon="💹", layout="wide")
+st.set_page_config(page_title="Terminal Pro IA - Estrategia", page_icon="💹", layout="wide")
 
-# Estilo personalizado para parecer un terminal Bloomberg/Reuters
-st.markdown("""
-    <style>
-    .reportview-container { background: #0e1117; }
-    .metric-label { font-size: 1.2rem !important; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("💹 Terminal de Análisis Avanzado")
-
-ticker_input = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, AAPL):", "NVDA").upper()
-
-# --- LÓGICA DE CONVERSIÓN ---
+# --- FUNCIONES DE LOGICA ---
 @st.cache_data(ttl=3600)
 def get_exchange_rate():
     try:
-        data = yf.Ticker("EURUSD=X").fast_info
-        return 1 / data.last_price
+        return 1 / yf.Ticker("EURUSD=X").fast_info.last_price
     except:
         return 0.92
 
+def obtener_recomendacion(precio, target, rec_key):
+    # Lógica de decisión multicriterio
+    if rec_key in ['strong_buy', 'buy'] and precio < target:
+        return "COMPRAR ✅", "El precio está en zona de descuento respecto al objetivo de analistas.", "green"
+    elif precio > target * 1.1:
+        return "VENDER 🚨", "El valor ha superado su precio objetivo; riesgo de corrección alto.", "red"
+    else:
+        return "MANTENER ⚖️", "Precio en equilibrio. Esperar a nuevas señales de volumen.", "orange"
+
+# --- INTERFAZ ---
+ticker_input = st.text_input("Introduce Ticker:", "NVDA").upper()
 cambio = get_exchange_rate()
 
 if ticker_input:
-    with st.spinner(f'Analizando datos institucionales para {ticker_input}...'):
+    with st.spinner('Procesando señales horarias y consenso...'):
         try:
             accion = yf.Ticker(ticker_input)
             info = accion.info
-            hist = accion.history(period="1mo")
-            
-            # --- 1. CABECERA Y ESTADO ---
-            nombre = info.get('longName', ticker_input)
-            st.header(f"{nombre} ({ticker_input})")
-            
-            # --- 2. MÉTRICAS DE PRECIO REAL ---
-            col1, col2, col3, col4 = st.columns(4)
             precio_actual = info.get('currentPrice', info.get('regularMarketPrice'))
-            if not precio_actual: precio_actual = accion.fast_info.last_price
-
-            col1.metric("Precio Actual (EUR)", f"{precio_actual * cambio:.2f} €")
-            col2.metric("Apertura", f"{info.get('open', 0) * cambio:.2f} €")
-            col3.metric("Máx. Día", f"{info.get('dayHigh', 0) * cambio:.2f} €")
-            col4.metric("Volumen", f"{info.get('volume', 0):,}")
-
-            st.markdown("---")
-
-            # --- 3. EL PANEL DE LOS ANALISTAS (LA CLAVE) ---
-            st.subheader("🕵️‍♂️ Consenso de los Mejores Analistas")
-            
-            # Datos de Wall Street
-            target_high = info.get('targetHighPrice', 0)
             target_mean = info.get('targetMeanPrice', 0)
-            rec_consensus = info.get('recommendationKey', 'N/A').replace('_', ' ').upper()
-            num_analistas = info.get('numberOfAnalystOpinions', 'N/A')
-
-            c1, c2, c3 = st.columns(3)
             
-            with c1:
-                st.markdown("**Sentimiento Global**")
-                color = "green" if "BUY" in rec_consensus else "orange"
-                st.markdown(f"<h2 style='color:{color};'>{rec_consensus}</h2>", unsafe_allow_html=True)
-                st.caption(f"Basado en {num_analistas} analistas institucionales")
+            # 1. BLOQUE DE DECISIÓN (COMPRAR/VENDER)
+            st.subheader("🎯 Recomendación Estratégica")
+            rec_text, motivo, color = obtener_recomendacion(precio_actual, target_mean, info.get('recommendationKey'))
+            
+            c1, c2 = st.columns([1, 2])
+            c1.markdown(f"<h1 style='color:{color}; text-align:center;'>{rec_text}</h1>", unsafe_allow_html=True)
+            c2.info(f"**Análisis:** {motivo}")
 
-            with c2:
-                st.markdown("**Precio Objetivo (Target)**")
-                upside = ((target_mean / precio_actual) - 1) * 100 if target_mean else 0
-                st.write(f"Promedio: **{target_mean * cambio:.2f} €**")
-                st.write(f"Potencial: **{upside:+.2f}%**")
-
-            with c3:
-                st.markdown("**Riesgo / Recompensa**")
-                if precio_actual < target_mean:
-                    st.success("INFRAVALORADA: El precio está por debajo del objetivo analista.")
-                else:
-                    st.warning("SOBREVALORADA: El precio ha superado el objetivo promedio.")
-
-            # --- 4. ANÁLISIS TÉCNICO IA ---
             st.markdown("---")
-            st.subheader("🔬 Análisis de Tendencia de Corto Plazo")
-            
-            # Lógica de cruce de medias simple
-            sma_20 = hist['Close'].rolling(window=20).mean().iloc[-1]
-            ultimo_cierre = hist['Close'].iloc[-1]
 
-            t1, t2 = st.columns(2)
+            # 2. COMPORTAMIENTO PARA MAÑANA Y HORARIOS CLAVE
+            col_a, col_b = st.columns(2)
             
-            with t1:
-                if ultimo_cierre > sma_20:
-                    st.info("📈 **TENDENCIA:** Alcista. El precio se mantiene sobre la media de 20 días.")
-                else:
-                    st.error("📉 **TENDENCIA:** Bajista. Presión vendedora detectada.")
-
-            with t2:
+            with col_a:
+                st.subheader("📅 Predicción Próxima Sesión")
+                hist = accion.history(period="5d")
                 vol_medio = hist['Volume'].mean()
-                vol_hoy = info.get('volume', 0)
-                if vol_hoy > vol_medio:
-                    st.warning("⚠️ **VOLUMEN:** Inusual. Los 'peces gordos' están moviendo ficha.")
+                ultimo_vol = hist['Volume'].iloc[-1]
+                
+                if ultimo_vol > vol_medio and precio_actual > hist['Close'].iloc[-2]:
+                    st.success("🔮 **PREVISIÓN:** ALCISTA. Fuerte acumulación detectada al cierre.")
+                elif ultimo_vol > vol_medio and precio_actual < hist['Close'].iloc[-2]:
+                    st.error("🔮 **PREVISIÓN:** BAJISTA. Distribución institucional detectada.")
                 else:
-                    st.write("📊 **VOLUMEN:** Normal. Sin movimientos institucionales agresivos.")
+                    st.warning("🔮 **PREVISIÓN:** LATERAL. Baja convicción en el mercado.")
+
+            with col_b:
+                st.subheader("⏰ Mapa de Calor Horario (España)")
+                st.write("Basado en patrones de liquidez y volatilidad:")
+                # Horarios recomendados por expertos
+                st.markdown("""
+                - **15:30 - 16:30:** 🚀 **Máxima Subida/Bajada** (Apertura USA).
+                - **17:00 - 19:00:** 🧊 **Estabilidad** (Bajo volumen, movimientos lentos).
+                - **21:30 - 22:00:** ⚡ **Cierre Crítico** (Ajuste de carteras institucionales).
+                """)
+
+            # 3. DATOS DE RESPALDO
+            with st.expander("Ver Datos Técnicos Completos"):
+                st.write(f"Precio Objetivo: {target_mean * cambio:.2f} €")
+                st.write(f"Rango 52 semanas: {info.get('fiftyTwoWeekLow', 0) * cambio:.2f}€ - {info.get('fiftyTwoWeekHigh', 0) * cambio:.2f}€")
 
         except Exception as e:
-            st.error(f"Ticker no encontrado o error en la conexión. Revisa que sea correcto (ej: NVDA).")
+            st.error("Error al conectar con la base de datos bursátil.")
 
-st.sidebar.markdown(f"""
-    **Configuración de Terminal**  
-    Última actualización: `{datetime.now().strftime('%H:%M:%S')}`  
-    Cambio aplicado: `1 USD = {cambio:.4f} EUR`
-""")
+st.sidebar.caption(f"Cambio actual: 1 USD = {cambio:.4f} EUR")
