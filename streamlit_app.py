@@ -1,81 +1,98 @@
 import streamlit as st
 import yfinance as yf
 from datetime import datetime, timedelta
-import pandas as pd
 
-st.set_page_config(page_title="Terminal Pro IA - Estrategia", page_icon="💹", layout="wide")
+st.set_page_config(page_title="Terminal Pro IA", page_icon="💹", layout="wide")
 
-# --- FUNCIONES DE LOGICA ---
-@st.cache_data(ttl=3600)
-def get_exchange_rate():
-    try:
-        return 1 / yf.Ticker("EURUSD=X").fast_info.last_price
-    except:
-        return 0.92
+st.title("💹 Terminal de Bolsa en Tiempo Real con Análisis de Expertos")
 
-def obtener_recomendacion(precio, target, rec_key):
-    # Lógica de decisión multicriterio
-    if rec_key in ['strong_buy', 'buy'] and precio < target:
-        return "COMPRAR ✅", "El precio está en zona de descuento respecto al objetivo de analistas.", "green"
-    elif precio > target * 1.1:
-        return "VENDER 🚨", "El valor ha superado su precio objetivo; riesgo de corrección alto.", "red"
-    else:
-        return "MANTENER ⚖️", "Precio en equilibrio. Esperar a nuevas señales de volumen.", "orange"
+ticker = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "").upper()
 
-# --- INTERFAZ ---
-ticker_input = st.text_input("Introduce Ticker:", "NVDA").upper()
-cambio = get_exchange_rate()
+# --- LÓGICA DE CAMBIO EUR/USD ---
+hoy = datetime.now()
+try:
+    eur_usd_data = yf.Ticker("EURUSD=X").fast_info
+    cambio = 1 / eur_usd_data.last_price
+except:
+    cambio = 0.92 
 
-if ticker_input:
-    with st.spinner('Procesando señales horarias y consenso...'):
+if ticker:
+    with st.spinner(f'Conectando con el mercado para {ticker}...'):
         try:
-            accion = yf.Ticker(ticker_input)
+            accion = yf.Ticker(ticker)
+            f_info = accion.fast_info
             info = accion.info
-            precio_actual = info.get('currentPrice', info.get('regularMarketPrice'))
-            target_mean = info.get('targetMeanPrice', 0)
+            hist = accion.history(period="5d")
             
-            # 1. BLOQUE DE DECISIÓN (COMPRAR/VENDER)
-            st.subheader("🎯 Recomendación Estratégica")
-            rec_text, motivo, color = obtener_recomendacion(precio_actual, target_mean, info.get('recommendationKey'))
+            # --- SECCIÓN 1: ESTADO DEL MERCADO (Mantenido) ---
+            st.subheader("🏦 Estado del Mercado Global")
+            hora_ny = (datetime.utcnow() - timedelta(hours=4)).time()
+            mercado_usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and 
+                                  hora_ny <= datetime.strptime("16:00", "%H:%M").time() and 
+                                  hoy.weekday() < 5)
             
-            c1, c2 = st.columns([1, 2])
-            c1.markdown(f"<h1 style='color:{color}; text-align:center;'>{rec_text}</h1>", unsafe_allow_html=True)
-            c2.info(f"**Análisis:** {motivo}")
+            status_color = "green" if mercado_usa_abierto else "red"
+            status_text = "ABIERTO" if mercado_usa_abierto else "CERRADO"
+            
+            st.markdown(f"**Estado actual (EE.UU.):** :{status_color}[{status_text}]")
+            st.write("**Horario Regular (España):** 15:30 a 22:00 | **Horario Madrid:** 09:00 a 17:30")
 
             st.markdown("---")
 
-            # 2. COMPORTAMIENTO PARA MAÑANA Y HORARIOS CLAVE
-            col_a, col_b = st.columns(2)
+            # --- SECCIÓN 2: PRECIOS COMPRA/VENTA (Mantenido) ---
+            col1, col2, col3 = st.columns(3)
             
-            with col_a:
-                st.subheader("📅 Predicción Próxima Sesión")
-                hist = accion.history(period="5d")
-                vol_medio = hist['Volume'].mean()
-                ultimo_vol = hist['Volume'].iloc[-1]
+            precio_real_eur = f_info.last_price * cambio
+            precio_compra_eur = info.get('bid', f_info.last_price) * cambio 
+            precio_venta_eur = info.get('ask', f_info.last_price) * cambio  
+
+            col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
+            col2.metric("Precio de COMPRA (Bid)", f"{precio_compra_eur:.2f} €")
+            col3.metric("Precio de VENTA (Ask)", f"{precio_venta_eur:.2f} €")
+
+            # --- NUEVA SECCIÓN: RECOMENDACIÓN COMPRAR/VENDER (Agregado) ---
+            st.markdown("---")
+            st.subheader("🎯 Decisión Estratégica Institucional")
+            
+            target_mean = info.get('targetMeanPrice', 0)
+            rec_key = info.get('recommendationKey', 'none')
+            
+            c1, c2 = st.columns([1, 2])
+            
+            if rec_key in ['strong_buy', 'buy'] and f_info.last_price < (target_mean or f_info.last_price):
+                c1.markdown("<h2 style='color:green;'>COMPRAR ✅</h2>", unsafe_allow_html=True)
+                c2.success(f"Analistas sugieren acumular. Precio objetivo: {target_mean * cambio:.2f} €")
+            elif rec_key in ['underperform', 'sell']:
+                c1.markdown("<h2 style='color:red;'>VENDER 🚨</h2>", unsafe_allow_html=True)
+                c2.error("Riesgo de caída. Los analistas están reduciendo posiciones.")
+            else:
+                c1.markdown("<h2 style='color:orange;'>MANTENER ⚖️</h2>", unsafe_allow_html=True)
+                c2.warning("Neutralidad en el mercado. No hay señales claras de entrada.")
+
+            # --- SECCIÓN 3: PREDICCIÓN Y PRÓXIMA SESIÓN (Mantenido y Mejorado) ---
+            st.markdown("---")
+            if not hist.empty:
+                st.subheader(f"🔮 Pronóstico y Horarios Clave")
                 
-                if ultimo_vol > vol_medio and precio_actual > hist['Close'].iloc[-2]:
-                    st.success("🔮 **PREVISIÓN:** ALCISTA. Fuerte acumulación detectada al cierre.")
-                elif ultimo_vol > vol_medio and precio_actual < hist['Close'].iloc[-2]:
-                    st.error("🔮 **PREVISIÓN:** BAJISTA. Distribución institucional detectada.")
-                else:
-                    st.warning("🔮 **PREVISIÓN:** LATERAL. Baja convicción en el mercado.")
+                col_pred, col_hora = st.columns(2)
+                
+                with col_pred:
+                    st.markdown("**Comportamiento para Mañana:**")
+                    if f_info.last_price > hist['Close'].iloc[-2]:
+                        st.success("🚀 SE PREVÉ TENDENCIA ALCISTA (Continuidad de compra)")
+                    else:
+                        st.error("📉 SE PREVÉ PRESIÓN BAJISTA (Ajuste de mercado)")
+                    
+                    st.info(f"💡 **Recomendación Asesores:** {rec_key.upper()}")
 
-            with col_b:
-                st.subheader("⏰ Mapa de Calor Horario (España)")
-                st.write("Basado en patrones de liquidez y volatilidad:")
-                # Horarios recomendados por expertos
-                st.markdown("""
-                - **15:30 - 16:30:** 🚀 **Máxima Subida/Bajada** (Apertura USA).
-                - **17:00 - 19:00:** 🧊 **Estabilidad** (Bajo volumen, movimientos lentos).
-                - **21:30 - 22:00:** ⚡ **Cierre Crítico** (Ajuste de carteras institucionales).
-                """)
-
-            # 3. DATOS DE RESPALDO
-            with st.expander("Ver Datos Técnicos Completos"):
-                st.write(f"Precio Objetivo: {target_mean * cambio:.2f} €")
-                st.write(f"Rango 52 semanas: {info.get('fiftyTwoWeekLow', 0) * cambio:.2f}€ - {info.get('fiftyTwoWeekHigh', 0) * cambio:.2f}€")
+                with col_hora:
+                    st.markdown("**Mejores horas para operar (España):**")
+                    st.write("⏱️ **15:30 - 16:15:** Alta volatilidad (Picos de subida/bajada).")
+                    st.write("⏱️ **19:00 - 20:30:** Consolidación de tendencia.")
+                    st.write("⏱️ **21:45 - 22:00:** Movimientos de cierre institucional.")
 
         except Exception as e:
-            st.error("Error al conectar con la base de datos bursátil.")
+            st.error(f"Error al obtener datos en tiempo real.")
 
-st.sidebar.caption(f"Cambio actual: 1 USD = {cambio:.4f} EUR")
+st.sidebar.write(f"**Actualizado:** {hoy.strftime('%H:%M:%S')}")
+st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
