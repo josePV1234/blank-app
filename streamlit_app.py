@@ -75,8 +75,8 @@ if ticker:
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{info.get('ask', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
             col4.write(f"📦 **{ask_size:,}** acciones")
 
-            # --- NUEVA SECCIÓN: COMPARADOR DE PRESIÓN DE MERCADO ---
-            st.markdown("### ⚖️ Comparador de Presión (Oferta vs Demanda)")
+            # --- SECCIÓN: COMPARADOR DE PRESIÓN (EXPLICACIÓN SIMPLIFICADA) ---
+            st.markdown("### ⚖️ Comparador de Fuerza")
             total_ordenes = bid_size + ask_size
             if total_ordenes > 0:
                 porcentaje_compra = (bid_size / total_ordenes) * 100
@@ -84,15 +84,15 @@ if ticker:
                 
                 st.progress(int(porcentaje_compra))
                 c_izq, c_der = st.columns(2)
-                c_izq.write(f"🟢 **Compradores:** {porcentaje_compra:.1f}%")
-                c_der.write(f"🔵 **Vendedores:** {porcentaje_venta:.1f}%")
+                c_izq.write(f"🟢 **Ganas de comprar:** {porcentaje_compra:.1f}%")
+                c_der.write(f"🔵 **Ganas de vender:** {porcentaje_venta:.1f}%")
                 
                 if porcentaje_compra > 60:
-                    st.success("🔥 **FUERZA COMPRADORA:** Hay mucha gente queriendo comprar. El precio tiene soporte.")
+                    st.success("💪 **MUCHOS COMPRADORES:** Hay una fila muy larga de gente queriendo comprar. Esto ayuda a que el precio no caiga y suba más fácil.")
                 elif porcentaje_venta > 60:
-                    st.error("⚠️ **PRESIÓN VENDEDORA:** Hay mucha gente queriendo vender. Riesgo de caída rápida.")
+                    st.error("📉 **MUCHOS VENDEDORES:** Hay demasiada gente queriendo vender ya mismo. El precio tiene mucha presión para bajar.")
                 else:
-                    st.warning("⚖️ **EQUILIBRIO:** No hay un bando dominante claro en este momento.")
+                    st.warning("⚖️ **ESTÁ IGUALADO:** No hay un bando que mande claramente. El precio está tranquilo.")
             else:
                 st.info("Sin datos de profundidad en este momento (Mercado fuera de hora).")
 
