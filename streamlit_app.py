@@ -19,10 +19,8 @@ traducciones = {
 # --- LÓGICA DE CALENDARIO ---
 hoy = datetime.now()
 dia_semana = hoy.weekday() 
-if dia_semana == 5: 
-    fecha_analisis = hoy + timedelta(days=2)
-elif dia_semana == 6: 
-    fecha_analisis = hoy + timedelta(days=1)
+if dia_semana >= 5: 
+    fecha_analisis = hoy + timedelta(days=(7 - dia_semana))
 else:
     fecha_analisis = hoy
 fecha_str = fecha_analisis.strftime("%d/%m/%Y")
@@ -35,7 +33,7 @@ except:
     cambio = 0.92 
 
 if ticker:
-    with st.spinner(f'Analizando órdenes programadas para {ticker}...'):
+    with st.spinner(f'Analizando presión de órdenes para {ticker}...'):
         try:
             accion = yf.Ticker(ticker)
             f_info = accion.fast_info
@@ -59,28 +57,46 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS (BID/ASK SIZE) ---
+            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS ---
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
-            apertura_estimada = (info.get('regularMarketOpen', f_info.last_price)) * cambio
             
-            # Obtener cantidad de acciones (Size) - Yahoo suele darlas en lotes de 100
             bid_size = info.get('bidSize', 0) * 100 
             ask_size = info.get('askSize', 0) * 100
 
             col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
-            col2.metric("Precio APERTURA", f"{apertura_estimada:.2f} €")
+            col2.metric("Precio APERTURA", f"{(info.get('regularMarketOpen', f_info.last_price)*cambio):.2f} €")
             
-            # Formateo con cantidad de acciones programadas
             col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
             col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{info.get('bid', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
-            col3.write(f"📦 **{bid_size:,}** acciones esperando compra")
+            col3.write(f"📦 **{bid_size:,}** acciones")
             
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{info.get('ask', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
-            col4.write(f"📦 **{ask_size:,}** acciones esperando venta")
+            col4.write(f"📦 **{ask_size:,}** acciones")
 
-            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (EN VERDE) ---
+            # --- NUEVA SECCIÓN: COMPARADOR DE PRESIÓN DE MERCADO ---
+            st.markdown("### ⚖️ Comparador de Presión (Oferta vs Demanda)")
+            total_ordenes = bid_size + ask_size
+            if total_ordenes > 0:
+                porcentaje_compra = (bid_size / total_ordenes) * 100
+                porcentaje_venta = (ask_size / total_ordenes) * 100
+                
+                st.progress(int(porcentaje_compra))
+                c_izq, c_der = st.columns(2)
+                c_izq.write(f"🟢 **Compradores:** {porcentaje_compra:.1f}%")
+                c_der.write(f"🔵 **Vendedores:** {porcentaje_venta:.1f}%")
+                
+                if porcentaje_compra > 60:
+                    st.success("🔥 **FUERZA COMPRADORA:** Hay mucha gente queriendo comprar. El precio tiene soporte.")
+                elif porcentaje_venta > 60:
+                    st.error("⚠️ **PRESIÓN VENDEDORA:** Hay mucha gente queriendo vender. Riesgo de caída rápida.")
+                else:
+                    st.warning("⚖️ **EQUILIBRIO:** No hay un bando dominante claro en este momento.")
+            else:
+                st.info("Sin datos de profundidad en este momento (Mercado fuera de hora).")
+
+            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (VERDE) ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
             volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
@@ -123,6 +139,6 @@ if ticker:
             st.write("**📥 Hora COMPRA:** 15:35 | **📤 Hora VENTA:** 21:40")
 
         except Exception as e:
-            st.error(f"Error técnico al analizar órdenes de {ticker}.")
+            st.error(f"Error técnico al analizar presión de {ticker}.")
 
 st.sidebar.write(f"**Análisis para el:** {fecha_str}")
