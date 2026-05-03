@@ -21,10 +21,21 @@ traducciones = {
     "none": "SIN CALIFICACIÓN"
 }
 
-# --- LÓGICA DE CAMBIO EUR/USD ---
+# --- LÓGICA DE CALENDARIO Y FECHAS ---
 hoy = datetime.now()
-fecha_hoy = hoy.strftime("%d/%m/%Y") # Formato de fecha español
+dia_semana = hoy.weekday() # 0=Lunes, 5=Sábado, 6=Domingo
 
+# Si es fin de semana, calculamos la fecha del próximo lunes
+if dia_semana == 5: # Sábado
+    fecha_analisis = hoy + timedelta(days=2)
+elif dia_semana == 6: # Domingo
+    fecha_analisis = hoy + timedelta(days=1)
+else:
+    fecha_analisis = hoy
+
+fecha_str = fecha_analisis.strftime("%d/%m/%Y")
+
+# --- LÓGICA DE CAMBIO EUR/USD ---
 try:
     eur_usd_data = yf.Ticker("EURUSD=X").fast_info
     cambio = 1 / eur_usd_data.last_price
@@ -48,10 +59,13 @@ if ticker:
             hora_ny = (datetime.utcnow() - timedelta(hours=4)).time()
             mercado_usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and 
                                   hora_ny <= datetime.strptime("16:00", "%H:%M").time() and 
-                                  hoy.weekday() < 5)
+                                  dia_semana < 5)
             
             status_color = "green" if mercado_usa_abierto else "red"
             status_text = "ABIERTO" if mercado_usa_abierto else "CERRADO"
+            
+            if dia_semana >= 5:
+                st.warning(f"⚠️ El mercado está cerrado por fin de semana. Mostrando proyecciones para el lunes {fecha_str}.")
             
             st.markdown(f"**Estado actual (EE.UU.):** :{status_color}[{status_text}]")
             st.write("**Horario Regular (España):** 15:30 a 22:00 | **Horario Madrid:** 09:00 a 17:30")
@@ -69,23 +83,27 @@ if ticker:
             col2.metric("Precio de COMPRA (Oferta)", f"{precio_compra_eur:.2f} €")
             col3.metric("Precio de VENTA (Demanda)", f"{precio_venta_eur:.2f} €")
 
-            # --- SECCIÓN: PROYECCIÓN DE MÁXIMOS Y HORARIOS (CON FECHA) ---
+            # --- SECCIÓN: PROYECCIÓN DE MÁXIMOS Y HORARIOS ---
             st.markdown("---")
-            st.subheader(f"🚀 Proyección de Impulso Diario - Análisis para hoy: {fecha_hoy}")
+            st.subheader(f"🚀 Proyección de Impulso Diario - Análisis para: {fecha_str}")
             
             rango_diario = (hist['High'] - hist['Low']).mean() * cambio
             maximo_estimado = precio_real_eur + (rango_diario * 0.5)
             
-            hora_actual_es = datetime.now().hour
-            if hora_actual_es < 16:
-                hora_pico = "15:45 - 16:15 (Apertura de EE.UU.)"
-            elif 16 <= hora_actual_es < 20:
-                hora_pico = "17:30 - 18:00 (Cierre de Europa)"
+            # Ajuste de hora pico
+            if dia_semana >= 5:
+                hora_pico = "15:45 - 16:15 (Apertura del Lunes)"
             else:
-                hora_pico = "21:30 - 21:50 (Cierre de EE.UU.)"
+                hora_actual_es = hoy.hour
+                if hora_actual_es < 16:
+                    hora_pico = "15:45 - 16:15 (Apertura de EE.UU.)"
+                elif 16 <= hora_actual_es < 20:
+                    hora_pico = "17:30 - 18:00 (Cierre de Europa)"
+                else:
+                    hora_pico = "21:30 - 21:50 (Cierre de EE.UU.)"
 
             p1, p2 = st.columns(2)
-            p1.metric("Máximo Estimado Hoy", f"{maximo_estimado:.2f} €", f"+{((maximo_estimado/precio_real_eur)-1)*100:.2f}%")
+            p1.metric("Máximo Estimado", f"{maximo_estimado:.2f} €", f"+{((maximo_estimado/precio_real_eur)-1)*100:.2f}%")
             p2.metric("Hora de mayor movimiento", hora_pico)
 
             # --- SECCIÓN 3: DECISIÓN DE EXPERTOS ---
@@ -112,7 +130,7 @@ if ticker:
             # --- SECCIÓN 4: PRONÓSTICO Y EXPLICACIÓN ---
             st.markdown("---")
             if not hist.empty:
-                st.subheader(f"🔮 ¿Qué esperar hoy?")
+                st.subheader(f"🔮 ¿Qué esperar para el {fecha_str}?")
                 col_pred, col_hora_det = st.columns(2)
                 
                 with col_pred:
@@ -124,11 +142,11 @@ if ticker:
 
                 with col_hora_det:
                     st.markdown("**Momentos clave para mirar el móvil:**")
-                    st.write("⏱️ **15:30 a 16:15:** Cuando abre el mercado en Nueva York y el precio se mueve con mucha fuerza.")
+                    st.write("⏱️ **15:30 a 16:15:** Cuando abra el mercado en Nueva York y el precio se mueve con mucha fuerza.")
                     st.write("⏱️ **21:45 a 22:00:** Justo antes de cerrar, cuando los grandes inversores deciden sus posiciones finales.")
 
         except Exception as e:
             st.error(f"Error al cargar los datos.")
 
-st.sidebar.write(f"**Actualizado:** {hoy.strftime('%H:%M:%S')}")
+st.sidebar.write(f"**Hoy es:** {hoy.strftime('%A %d/%m/%Y')}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
