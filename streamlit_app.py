@@ -71,18 +71,25 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS EN TIEMPO REAL ---
-            col1, col2, col3 = st.columns(3)
+            # --- SECCIÓN 2: PRECIOS EN TIEMPO REAL Y APERTURA ---
+            col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
-            col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
-            col2.metric("Precio de COMPRA (Oferta)", f"{(info.get('bid', f_info.last_price) * cambio):.2f} €")
-            col3.metric("Precio de VENTA (Demanda)", f"{(info.get('ask', f_info.last_price) * cambio):.2f} €")
+            
+            # Cálculo de Precio de Apertura Estimado
+            # Se basa en el precio de cierre y el ajuste de volatilidad reciente
+            apertura_estimada = (info.get('regularMarketOpen', f_info.last_price)) * cambio
+            if dia_semana >= 5: # Si es fin de semana, ajustamos según tendencia
+                apertura_estimada = precio_real_eur * (1 + (info.get('preMarketChangePercent', 0) / 100))
 
-            # --- NUEVA SECCIÓN: ANÁLISIS DE PUNTOS CRÍTICOS (SUBIDAS Y BAJADAS) ---
+            col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
+            col2.metric("Precio APERTURA estimado", f"{apertura_estimada:.2f} €")
+            col3.metric("COMPRA (Oferta)", f"{(info.get('bid', f_info.last_price) * cambio):.2f} €")
+            col4.metric("VENTA (Demanda)", f"{(info.get('ask', f_info.last_price) * cambio):.2f} €")
+
+            # --- SECCIÓN 3: ANÁLISIS DE PUNTOS CRÍTICOS (SUBIDAS Y BAJADAS) ---
             st.markdown("---")
             st.subheader(f"📊 Análisis de Movimientos Previstos ({fecha_str})")
             
-            # Cálculo de volatilidad esperada
             volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
             importe_subida = volatilidad_avg * 0.75
             importe_bajada = volatilidad_avg * 0.60
@@ -93,15 +100,15 @@ if ticker:
                 st.markdown("#### 🟢 Previsión de SUBIDA")
                 st.write(f"**Importe estimado de subida:** +{importe_subida:.2f} €")
                 st.write(f"**Techo máximo esperado:** {(precio_real_eur + importe_subida):.2f} €")
-                st.info("⏰ **Hora prevista de pico máximo:** 15:45 - 16:30 (Impulso inicial de apertura)")
+                st.info("⏰ **Hora prevista de pico máximo:** 15:45 - 16:30 (Impulso inicial)")
 
             with m2:
                 st.markdown("#### 🔴 Previsión de BAJADA")
                 st.write(f"**Importe estimado de bajada:** -{importe_bajada:.2f} €")
                 st.write(f"**Suelo mínimo esperado:** {(precio_real_eur - importe_bajada):.2f} €")
-                st.info("⏰ **Hora prevista de caída/ajuste:** 17:15 - 18:00 (Cierre de mercados europeos)")
+                st.info("⏰ **Hora prevista de caída/ajuste:** 17:15 - 18:00 (Cierre Europeo)")
 
-            # --- SECCIÓN 3: DECISIÓN DE EXPERTOS ---
+            # --- SECCIÓN 4: DECISIÓN DE EXPERTOS ---
             st.markdown("---")
             st.subheader("🎯 Decisión de los Expertos")
             rec_key_raw = info.get('recommendationKey', 'none').lower()
@@ -117,25 +124,25 @@ if ticker:
                 c2.error("Los analistas sugieren precaución o venta.")
             else:
                 c1.markdown(f"<h2 style='color:orange;'>{rec_esp} ⚖️</h2>", unsafe_allow_html=True)
-                c2.warning("Consenso neutral. Esperar a confirmación de tendencia.")
+                c2.warning("Consenso neutral. Esperar a confirmación.")
 
-            # --- SECCIÓN 4: PRONÓSTICO Y EXPLICACIÓN ---
+            # --- SECCIÓN 5: PRONÓSTICO Y EXPLICACIÓN ---
             st.markdown("---")
             if not hist.empty:
                 st.subheader(f"🔮 Resumen para el inversor")
                 col_pred, col_hora_det = st.columns(2)
                 with col_pred:
                     if f_info.last_price > hist['Close'].iloc[-2]:
-                        st.success("🚀 TENDENCIA: ALCISTA (El mercado tiene fuerza compradora)")
+                        st.success("🚀 TENDENCIA: ALCISTA (Hay fuerza compradora)")
                     else:
-                        st.error("📉 TENDENCIA: BAJISTA (El mercado tiene presión de venta)")
+                        st.error("📉 TENDENCIA: BAJISTA (Hay presión de venta)")
 
                 with col_hora_det:
-                    st.write("⏱️ **Mañana (15:30):** Mucha fuerza, ideal para ver la dirección del día.")
-                    st.write("⏱️ **Tarde (21:45):** Los 'peces gordos' cierran sus operaciones.")
+                    st.write("⏱️ **Mañana (15:30):** Apertura. Momento de mayor cambio de precio.")
+                    st.write("⏱️ **Tarde (21:45):** Cierre. Se fijan los precios finales del día.")
 
         except Exception as e:
-            st.error(f"Error al analizar el Ticker. Asegúrate de que sea correcto.")
+            st.error(f"Error al analizar el Ticker. Verifica que sea correcto.")
 
 st.sidebar.write(f"**Análisis del:** {hoy.strftime('%d/%m/%Y')}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
