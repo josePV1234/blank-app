@@ -23,7 +23,7 @@ if ticker:
             }
             consejo_es = traduccion.get(rec_en, "NEUTRAL")
 
-            if not historial.empty:
+            if not hist.empty:
                 precio_hoy = hist['Close'].iloc[-1]
                 precio_ayer = hist['Close'].iloc[-2]
                 volumen = info.get('volume', 0)
@@ -31,7 +31,7 @@ if ticker:
                 
                 st.subheader(f"Análisis para la apertura de {ticker}:")
                 
-                # --- NUEVA LÓGICA DE FRASES INTUITIVAS ---
+                # --- LÓGICA DE FRASES INTUITIVAS CORREGIDA ---
                 
                 # Caso 1: Subida con mucha fuerza
                 if rec_en in ['strong_buy', 'buy'] and precio_hoy > precio_ayer and volumen > volumen_medio:
@@ -39,17 +39,17 @@ if ticker:
                     st.write("**Análisis:** Hay una alineación perfecta entre expertos y volumen de compras. El valor tiene mucha inercia alcista.")
                     st.balloons()
                 
-                # Caso 2: Subida lenta / Indecisión alcista
+                # Caso 2: Subida lenta
                 elif rec_en in ['strong_buy', 'buy'] and precio_hoy > precio_ayer:
                     st.success("📈 SE PREVÉ QUE MAÑANA VAYA AL ALZA AUNQUE MUY LENTA")
                     st.write("**Análisis:** Los expertos confían, pero el precio no tiene fuerza para dispararse de inmediato. Irá paso a paso.")
 
-                # Caso 3: Oportunidad de compra en caída (Rebote)
+                # Caso 3: Oportunidad de compra en caída
                 elif rec_en in ['strong_buy', 'buy'] and precio_hoy < precio_ayer:
                     st.warning("🛒 SE PREVÉ COMPRAR: EL PRECIO SIGUE CAYENDO PERO EN BREVE SUBIRÁ")
                     st.write("**Análisis:** Es una oportunidad de 'rebaja'. Los expertos mantienen la confianza pese a la caída de hoy.")
 
-                # Caso 4: Mercado estancado
+                # Caso 4: Mercado estancado / Lateral
                 elif rec_en == 'hold':
                     st.info("⚖️ SE PREVÉ QUE MAÑANA SE QUEDE IGUAL (MERCADO LATERAL)")
                     st.write("**Análisis:** Ahora mismo el precio no tiene fuerza para dispararse ni para caer. Mejor esperar.")
@@ -61,8 +61,8 @@ if ticker:
 
                 st.info(f"💡 Consenso de Wall Street: **{consejo_es}**")
             else:
-                st.warning("No se encontraron datos.")
-        except:
-            st.error("Error al conectar con los sistemas financieros.")
+                st.warning("No se encontraron datos. Asegúrate de usar el símbolo correcto.")
+        except Exception as e:
+            st.error(f"Error al conectar con los sistemas financieros.")
 
 st.sidebar.info("Este panel analiza la probabilidad de movimiento para la apertura de la siguiente sesión.")
