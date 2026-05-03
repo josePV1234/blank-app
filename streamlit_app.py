@@ -3,7 +3,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import numpy as np
 
-st.set_page_config(page_title="Terminal Pro IA - Estrategia Final", page_icon="💹", layout="wide")
+st.set_page_config(page_title="Terminal Pro IA - Estrategia Total", page_icon="💹", layout="wide")
 
 st.title("💹 Terminal de Bolsa en Tiempo Real")
 
@@ -36,7 +36,7 @@ except:
     cambio = 0.92 
 
 if ticker:
-    with st.spinner(f'Analizando estrategia final para {ticker}...'):
+    with st.spinner(f'Analizando datos profundos para {ticker}...'):
         try:
             accion = yf.Ticker(ticker)
             f_info = accion.fast_info
@@ -60,7 +60,7 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y BID/ASK (CON COLORES) ---
+            # --- SECCIÓN 2: PRECIOS Y BID/ASK (CON COLORES SOLICITADOS) ---
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
             apertura_estimada = (info.get('regularMarketOpen', f_info.last_price)) * cambio
@@ -76,65 +76,58 @@ if ticker:
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{precio_ask:.2f} €</h2>", unsafe_allow_html=True)
 
-            # --- NUEVA SECCIÓN: DECISIÓN FINAL DE INVERSIÓN ---
+            # --- NUEVA SECCIÓN: RANGO DE PRECIOS MÁXIMO/MÍNIMO DEL DÍA ANALIZADO ---
+            st.markdown("---")
+            st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
+            
+            volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
+            techo_max = precio_real_eur + (volatilidad_avg * 0.85)
+            suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
+            
+            r1, r2 = st.columns(2)
+            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #dc3545; border-radius:5px;'><h3 style='margin:0;'>MÍNIMO a alcanzar hoy:</h3><h1 style='color:#dc3545; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
+
+            # --- SECCIÓN: DECISIÓN FINAL DE INVERSIÓN ---
             st.markdown("---")
             st.subheader(f"🚩 DECISIÓN FINAL PARA EL DÍA: {fecha_str}")
-            
             rec_key = info.get('recommendationKey', 'none').lower()
             tendencia_alcista = f_info.last_price > hist['Close'].iloc[-2]
-            target_mean = info.get('targetMeanPrice', 0)
             
-            # Lógica de decisión simplificada
             if rec_key in ['strong_buy', 'buy'] and tendencia_alcista:
-                decision_final = "COMPRAR"
-                color_final = "#28a745" # Verde
-                explicacion = f"La IA y los asesores coinciden: {ticker} tiene fuerza alcista y volumen para subir hoy {fecha_str}."
+                decision = "COMPRAR"; color_f = "#28a745"
+                exp = f"La IA confirma fuerza para este {fecha_str}."
             elif rec_key in ['underperform', 'sell', 'strong_sell'] or not tendencia_alcista:
-                decision_final = "VENDER / EVITAR"
-                color_final = "#dc3545" # Rojo
-                explicacion = f"Riesgo detectado. La presión de venta es superior a la compra para este {fecha_str}. Mejor proteger capital."
+                decision = "VENDER / EVITAR"; color_f = "#dc3545"
+                exp = f"Se detecta riesgo de caída para este {fecha_str}."
             else:
-                decision_final = "MANTENER / NEUTRAL"
-                color_final = "#ffc107" # Ámbar
-                explicacion = f"Mercado en equilibrio para el {fecha_str}. No hay una señal clara de entrada o salida masiva."
+                decision = "MANTENER / NEUTRAL"; color_f = "#ffc107"
+                exp = "Mercado sin tendencia clara."
 
-            st.markdown(f"""
-                <div style="background-color: {color_final}; padding: 20px; border-radius: 10px; text-align: center;">
-                    <h1 style="color: white; margin: 0;">ACCIÓN RECOMENDADA: {decision_final}</h1>
-                    <p style="color: white; font-size: 1.2rem; margin-top: 10px;">{explicacion}</p>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1><p style='color:white; font-size:1.1rem;'>{exp}</p></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN 3: PUNTOS CRÍTICOS (SUBIDAS Y BAJADAS) ---
+            # --- SECCIÓN: PUNTOS CRÍTICOS Y HORARIOS ---
             st.markdown("---")
-            st.subheader(f"📊 Movimientos Críticos Previstos ({fecha_str})")
-            volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
-            valor_subida = volatilidad_avg * 0.80
-            valor_bajada = volatilidad_avg * 0.65
-            
+            st.subheader(f"🔮 ¿Cuándo se producirá el mayor movimiento?")
             m1, m2 = st.columns(2)
             with m1:
-                st.markdown("#### 🟢 Mayor SUBIDA estimada")
-                st.write(f"**Importe de subida:** +{valor_subida:.2f} €")
-                st.success(f"⏰ **Hora estimada:** 15:45 - 16:15")
+                st.markdown("#### 🟢 Mayor SUBIDA")
+                st.write(f"Importe: +{(techo_max - precio_real_eur):.2f} €")
+                st.info("⏰ 15:45 - 16:15 (Apertura USA)")
             with m2:
-                st.markdown("#### 🔴 Mayor BAJADA estimada")
-                st.write(f"**Importe de bajada:** -{valor_bajada:.2f} €")
-                st.error(f"⏰ **Hora estimada:** 17:20 - 17:50")
+                st.markdown("#### 🔴 Mayor BAJADA")
+                st.write(f"Importe: -{(precio_real_eur - suelo_min):.2f} €")
+                st.error("⏰ 17:20 - 17:50 (Cierre Europeo)")
 
-            # --- SECCIÓN 4: HORARIOS TRADE REPUBLIC ---
+            # --- HORARIOS TRADE REPUBLIC ---
             st.markdown("---")
-            st.subheader("🚀 Horarios de Operativa Trade Republic")
-            e1, e2 = st.columns(2)
-            with e1:
-                st.markdown("### 📥 Hora de COMPRA ideal")
-                st.write("15:35 (Aprovechando la liquidez de apertura USA)")
-            with e2:
-                st.markdown("### 📤 Hora de VENTA ideal")
-                st.write("21:40 (Cierre de mercado americano para maximizar ganancias)")
+            st.subheader("🚀 Operativa Trade Republic")
+            col_tr1, col_tr2 = st.columns(2)
+            col_tr1.write("**📥 Hora COMPRA ideal:** 15:35")
+            col_tr2.write("**📤 Hora VENTA ideal:** 21:40")
 
         except Exception as e:
-            st.error(f"Error al procesar el análisis de {ticker}.")
+            st.error(f"Error técnico al analizar {ticker}.")
 
-st.sidebar.write(f"**Análisis generado el:** {hoy.strftime('%d/%m/%Y')}")
+st.sidebar.write(f"**Análisis para el:** {fecha_str}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
