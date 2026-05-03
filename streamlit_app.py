@@ -75,7 +75,7 @@ if ticker:
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{precio_ask:.2f} €</h2>", unsafe_allow_html=True)
 
-            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (AMBOS EN AZUL) ---
+            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (AHORA EN VERDE) ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
             
@@ -84,9 +84,9 @@ if ticker:
             suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
             
             r1, r2 = st.columns(2)
-            # Ambos paneles ahora configurados en azul (#007bff)
-            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #007bff; border-radius:5px;'><h3 style='margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#007bff; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
-            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #007bff; border-radius:5px;'><h3 style='margin:0;'>MÍNIMO alcanzado hoy:</h3><h1 style='color:#007bff; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
+            # Ambos paneles configurados en verde (#28a745)
+            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÍNIMO alcanzado hoy:</h3><h1 style='color:#28a745; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
             # --- SECCIÓN: DECISIÓN FINAL DE INVERSIÓN ---
             st.markdown("---")
