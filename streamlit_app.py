@@ -35,14 +35,12 @@ else:
     fecha_analisis = hoy
 fecha_str = fecha_analisis.strftime("%d/%m/%Y")
 
-# --- LÓGICA PRÓXIMA SESIÓN ---
-if dia_semana == 4: # Si es viernes
-    proxima_fecha = hoy + timedelta(days=3)
-elif dia_semana == 5: # Si es sábado
-    proxima_fecha = hoy + timedelta(days=2)
-else:
-    proxima_fecha = hoy + timedelta(days=1)
-proxima_fecha_str = proxima_fecha.strftime("%d/%m/%Y")
+# --- LÓGICA DÍA POSTERIOR (Día 5 si hoy es 4) ---
+fecha_posterior = fecha_analisis + timedelta(days=1)
+# Si el día posterior cae en sábado, saltamos al lunes
+if fecha_posterior.weekday() == 5:
+    fecha_posterior += timedelta(days=2)
+fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
 
 # --- LÓGICA DE CAMBIO EUR/USD ---
 try:
@@ -103,13 +101,6 @@ if ticker:
                 c_izq, c_der = st.columns(2)
                 c_izq.write(f"🟢 **Ganas de comprar:** {porcentaje_compra:.1f}%")
                 c_der.write(f"🔵 **Ganas de vender:** {100-porcentaje_compra:.1f}%")
-                
-                if porcentaje_compra > 60:
-                    st.success("💪 **MUCHOS COMPRADORES:** Hay una fila muy larga de gente queriendo comprar.")
-                elif porcentaje_compra < 40:
-                    st.error("📉 **MUCHOS VENDEDORES:** Hay demasiada gente queriendo vender ya mismo.")
-                else:
-                    st.warning("⚖️ **ESTÁ IGUALADO:** No hay un bando que mande claramente.")
 
             # --- SECCIÓN 4: RANGO DE PRECIOS MÁXIMO/MÍNIMO ---
             st.markdown("---")
@@ -119,20 +110,19 @@ if ticker:
             suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
             
             r1, r2 = st.columns(2)
-            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
-            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÍNIMO alcanzado hoy:</h3><h1 style='color:#28a745; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
+            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
-            # --- NUEVA SECCIÓN: PREDICCIÓN PRÓXIMO DÍA ---
+            # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
             st.markdown("---")
-            st.subheader(f"🚀 Análisis Predictivo - Próxima Sesión: {proxima_fecha_str}")
-            # Estimación basada en desviación estándar y tendencia de cierre
-            cierre_hoy = f_info.last_price * cambio
-            pred_max = cierre_hoy + (volatilidad_avg * 1.1)
-            pred_min = cierre_hoy - (volatilidad_avg * 0.9)
+            st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
+            # Cálculo proyectado para el día siguiente
+            pred_max = techo_max + (volatilidad_avg * 0.2)
+            pred_min = suelo_min - (volatilidad_avg * 0.2)
             
-            px1, px2 = st.columns(2)
-            px1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #007bff; border-radius:5px;'><h3 style='color:#007bff; margin:0;'>MÁXIMO Previsto Mañana:</h3><h1 style='color:#007bff; margin:0;'>{pred_max:.2f} €</h1></div>", unsafe_allow_html=True)
-            px2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO Previsto Mañana:</h3><h1 style='color:#ff4b4b; margin:0;'>{pred_min:.2f} €</h1></div>", unsafe_allow_html=True)
+            pcol1, pcol2 = st.columns(2)
+            pcol1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Estimado ({fecha_post_str}):</h3><h1 style='color:#00d4ff; margin:0;'>{pred_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            pcol2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Estimado ({fecha_post_str}):</h3><h1 style='color:#ffaa00; margin:0;'>{pred_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
             # --- SECCIÓN: DECISIÓN FINAL ---
             st.markdown("---")
@@ -142,20 +132,20 @@ if ticker:
             decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
             st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN: PUNTOS CRÍTICOS Y OPERATIVA ---
+            # --- SECCIÓN: PUNTOS CRÍTICOS ---
             st.markdown("---")
-            st.subheader("🔮 Puntos Críticos y Trade Republic")
+            st.subheader("⏱️ Operativa Sugerida")
             p1, p2 = st.columns(2)
-            p1.info(f"**Mayor SUBIDA:** +{(techo_max-precio_real_eur):.2f} € a las 15:45")
-            p1.error(f"**Mayor BAJADA:** -{(precio_real_eur-suelo_min):.2f} € a las 17:20")
-            p2.write(f"📥 **Compra:** 15:35 | 📤 **Venta:** 21:40")
+            p1.info(f"**Mayor SUBIDA esperada:** +{(techo_max-precio_real_eur):.2f} €")
+            p1.error(f"**Mayor BAJADA esperada:** -{(precio_real_eur-suelo_min):.2f} €")
+            p2.write(f"📥 **Compra ideal:** 15:35 | 📤 **Venta ideal:** 21:40")
 
         except Exception as e:
-            st.error(f"Esperando conexión con el mercado o error en ticker...")
+            st.error(f"Error al obtener datos. Reintentando...")
 
 # Sidebar
-st.sidebar.write(f"**Análisis para el:** {fecha_str}")
-st.sidebar.write(f"Próxima actualización en 30 segundos...")
+st.sidebar.write(f"**Día Actual:** {fecha_str}")
+st.sidebar.write(f"**Próximo Análisis:** {fecha_post_str}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
 
 autorefresh(30)
