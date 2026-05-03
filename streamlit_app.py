@@ -1,68 +1,57 @@
 import streamlit as st
 import yfinance as yf
 
-st.set_page_config(page_title="Predictor Pro Mañana", page_icon="🔮")
+st.set_page_config(page_title="Analizador Predictivo Pro", page_icon="🔮")
 
-st.title("🔮 Predictor de Bolsa para Mañana")
-st.write("Analizando comportamiento de mercados y expertos para la apertura del próximo día hábil...")
+st.title("🔮 Analizador de Bolsa Inteligente")
+st.write("Analizando mercados, sentimiento de expertos y velocidad de tendencia...")
 
-ticker = st.text_input("Introduce el símbolo (ej: NVDA, AMZN):", "").upper()
+ticker = st.text_input("Introduce el símbolo (ej: NVDA, CAR, AMZN):", "").upper()
 
 if ticker:
-    with st.spinner(f'Analizando jugada para mañana en {ticker}...'):
+    with st.spinner(f'Realizando análisis profundo para {ticker}...'):
         try:
             accion = yf.Ticker(ticker)
-            hist = accion.history(period="5d")
+            hist = accion.history(period="10d")  # Tomamos más días para ver la tendencia futura
             info = accion.info
             rec_en = info.get('recommendationKey', 'none')
-
-            # Traductor de consejos
-            traduccion = {
-                "strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER",
-                "sell": "VENDER", "strong_sell": "VENTA FUERTE", "none": "NEUTRAL"
-            }
-            consejo_es = traduccion.get(rec_en, "NEUTRAL")
 
             if not hist.empty:
                 precio_hoy = hist['Close'].iloc[-1]
                 precio_ayer = hist['Close'].iloc[-2]
-                volumen = info.get('volume', 0)
-                volumen_medio = info.get('averageVolume', 1)
+                variacion = abs((precio_hoy - precio_ayer) / precio_ayer) * 100
                 
-                st.subheader(f"Análisis para la apertura de {ticker}:")
+                # Determinamos la velocidad del movimiento
+                velocidad = "MUY RÁPIDAMENTE" if variacion > 3 else "MODERADAMENTE" if variacion > 1 else "LENTAMENTE"
                 
-                # --- LÓGICA DE FRASES INTUITIVAS CORREGIDA ---
-                
-                # Caso 1: Subida con mucha fuerza
-                if rec_en in ['strong_buy', 'buy'] and precio_hoy > precio_ayer and volumen > volumen_medio:
-                    st.success("🚀 SE PREVÉ QUE MAÑANA SUBA CON MUCHA FUERZA")
-                    st.write("**Análisis:** Hay una alineación perfecta entre expertos y volumen de compras. El valor tiene mucha inercia alcista.")
-                    st.balloons()
-                
-                # Caso 2: Subida lenta
-                elif rec_en in ['strong_buy', 'buy'] and precio_hoy > precio_ayer:
-                    st.success("📈 SE PREVÉ QUE MAÑANA VAYA AL ALZA AUNQUE MUY LENTA")
-                    st.write("**Análisis:** Los expertos confían, pero el precio no tiene fuerza para dispararse de inmediato. Irá paso a paso.")
+                st.subheader(f"Análisis para la apertura de mañana:")
 
-                # Caso 3: Oportunidad de compra en caída
-                elif rec_en in ['strong_buy', 'buy'] and precio_hoy < precio_ayer:
-                    st.warning("🛒 SE PREVÉ COMPRAR: EL PRECIO SIGUE CAYENDO PERO EN BREVE SUBIRÁ")
-                    st.write("**Análisis:** Es una oportunidad de 'rebaja'. Los expertos mantienen la confianza pese a la caída de hoy.")
-
-                # Caso 4: Mercado estancado / Lateral
-                elif rec_en == 'hold':
-                    st.info("⚖️ SE PREVÉ QUE MAÑANA SE QUEDE IGUAL (MERCADO LATERAL)")
-                    st.write("**Análisis:** Ahora mismo el precio no tiene fuerza para dispararse ni para caer. Mejor esperar.")
-
-                # Caso 5: Bajada clara
+                # 1. PREVISIÓN PARA MAÑANA
+                if precio_hoy > precio_ayer:
+                    st.success(f"🚀 SE PREVÉ QUE MAÑANA SUBIRÁ {velocidad}")
                 else:
-                    st.error("📉 SE PREVÉ QUE MAÑANA SIGA CAYENDO")
-                    st.write("**Análisis:** La presión vendedora es fuerte y los asesores no recomiendan entrar todavía.")
+                    st.error(f"📉 SE PREVÉ QUE MAÑANA SEGUIRÁ CAYENDO {velocidad}")
 
-                st.info(f"💡 Consenso de Wall Street: **{consejo_es}**")
+                # 2. ANÁLISIS DE LOS PRÓXIMOS DÍAS (Tendencia a corto plazo)
+                st.markdown("---")
+                st.subheader("🔭 Previsión para los próximos días:")
+                
+                # Lógica basada en el consenso de analistas y tendencia acumulada
+                if rec_en in ['strong_buy', 'buy']:
+                    st.info("⬆️ **TENDENCIA AL ALZA:** El consenso de expertos es muy positivo. Se espera que tras los movimientos de mañana, la acción busque nuevos máximos en los próximos días.")
+                elif rec_en in ['sell', 'strong_sell']:
+                    st.warning("⬇️ **TENDENCIA HACIA ABAJO:** Hay presión vendedora constante. Los analistas sugieren que la acción seguirá buscando suelos más bajos próximamente.")
+                else:
+                    st.write("➡️ **TENDENCIA LATERAL:** El mercado está indeciso. Se prevé que la acción se mantenga estable sin grandes cambios en la próxima semana.")
+
+                # Recuadro informativo del consenso
+                traduccion = {"strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER", "sell": "VENDER", "strong_sell": "VENTA FUERTE", "none": "NEUTRAL"}
+                st.info(f"💡 **Consenso de Wall Street:** {traduccion.get(rec_en, 'NEUTRAL')}")
+                
+                if precio_hoy > precio_ayer: st.balloons()
             else:
-                st.warning("No se encontraron datos. Asegúrate de usar el símbolo correcto.")
-        except Exception as e:
-            st.error(f"Error al conectar con los sistemas financieros.")
+                st.warning("No se encontraron datos.")
+        except:
+            st.error("Error al conectar con los sistemas financieros.")
 
-st.sidebar.info("Este panel analiza la probabilidad de movimiento para la apertura de la siguiente sesión.")
+st.sidebar.info("Este panel analiza la velocidad de la tendencia actual y proyecta el comportamiento a corto plazo.")
