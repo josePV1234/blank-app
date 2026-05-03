@@ -8,6 +8,18 @@ st.title("💹 Terminal de Bolsa en Tiempo Real con Análisis de Expertos")
 
 ticker = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "").upper()
 
+# --- DICCIONARIO DE TRADUCCIÓN ---
+traducciones = {
+    "strong_buy": "COMPRA FUERTE",
+    "buy": "COMPRAR",
+    "hold": "MANTENER",
+    "neutral": "NEUTRAL",
+    "sell": "VENDER",
+    "strong_sell": "VENTA FUERTE",
+    "underperform": "BAJO RENDIMIENTO",
+    "none": "SIN DATOS"
+}
+
 # --- LÓGICA DE CAMBIO EUR/USD ---
 hoy = datetime.now()
 try:
@@ -24,7 +36,7 @@ if ticker:
             info = accion.info
             hist = accion.history(period="5d")
             
-            # --- SECCIÓN 1: ESTADO DEL MERCADO (Mantenido) ---
+            # --- SECCIÓN 1: ESTADO DEL MERCADO ---
             st.subheader("🏦 Estado del Mercado Global")
             hora_ny = (datetime.utcnow() - timedelta(hours=4)).time()
             mercado_usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and 
@@ -39,7 +51,7 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS COMPRA/VENTA (Mantenido) ---
+            # --- SECCIÓN 2: PRECIOS COMPRA/VENTA ---
             col1, col2, col3 = st.columns(3)
             
             precio_real_eur = f_info.last_price * cambio
@@ -50,26 +62,27 @@ if ticker:
             col2.metric("Precio de COMPRA (Bid)", f"{precio_compra_eur:.2f} €")
             col3.metric("Precio de VENTA (Ask)", f"{precio_venta_eur:.2f} €")
 
-            # --- NUEVA SECCIÓN: RECOMENDACIÓN COMPRAR/VENDER (Agregado) ---
+            # --- SECCIÓN 3: RECOMENDACIÓN ESTRATÉGICA (TRADUCIDA) ---
             st.markdown("---")
             st.subheader("🎯 Decisión Estratégica Institucional")
             
             target_mean = info.get('targetMeanPrice', 0)
-            rec_key = info.get('recommendationKey', 'none')
+            rec_key_raw = info.get('recommendationKey', 'none').lower()
+            rec_esp = traducciones.get(rec_key_raw, rec_key_raw.upper())
             
-            c1, c2 = st.columns([1, 2])
+            c1, c2 = st.columns()
             
-            if rec_key in ['strong_buy', 'buy'] and f_info.last_price < (target_mean or f_info.last_price):
-                c1.markdown("<h2 style='color:green;'>COMPRAR ✅</h2>", unsafe_allow_html=True)
+            if rec_key_raw in ['strong_buy', 'buy']:
+                c1.markdown(f"<h2 style='color:green;'>{rec_esp} ✅</h2>", unsafe_allow_html=True)
                 c2.success(f"Analistas sugieren acumular. Precio objetivo: {target_mean * cambio:.2f} €")
-            elif rec_key in ['underperform', 'sell']:
-                c1.markdown("<h2 style='color:red;'>VENDER 🚨</h2>", unsafe_allow_html=True)
+            elif rec_key_raw in ['underperform', 'sell', 'strong_sell']:
+                c1.markdown(f"<h2 style='color:red;'>{rec_esp} 🚨</h2>", unsafe_allow_html=True)
                 c2.error("Riesgo de caída. Los analistas están reduciendo posiciones.")
             else:
-                c1.markdown("<h2 style='color:orange;'>MANTENER ⚖️</h2>", unsafe_allow_html=True)
+                c1.markdown(f"<h2 style='color:orange;'>{rec_esp} ⚖️</h2>", unsafe_allow_html=True)
                 c2.warning("Neutralidad en el mercado. No hay señales claras de entrada.")
 
-            # --- SECCIÓN 3: PREDICCIÓN Y PRÓXIMA SESIÓN (Mantenido y Mejorado) ---
+            # --- SECCIÓN 4: PREDICCIÓN Y HORARIOS (TRADUCIDA) ---
             st.markdown("---")
             if not hist.empty:
                 st.subheader(f"🔮 Pronóstico y Horarios Clave")
@@ -79,20 +92,20 @@ if ticker:
                 with col_pred:
                     st.markdown("**Comportamiento para Mañana:**")
                     if f_info.last_price > hist['Close'].iloc[-2]:
-                        st.success("🚀 SE PREVÉ TENDENCIA ALCISTA (Continuidad de compra)")
+                        st.success("🚀 SE PREVÉ TENDENCIA ALCISTA")
                     else:
-                        st.error("📉 SE PREVÉ PRESIÓN BAJISTA (Ajuste de mercado)")
+                        st.error("📉 SE PREVÉ PRESIÓN BAJISTA")
                     
-                    st.info(f"💡 **Recomendación Asesores:** {rec_key.upper()}")
+                    st.info(f"💡 **Recomendación Asesores:** {rec_esp}")
 
                 with col_hora:
                     st.markdown("**Mejores horas para operar (España):**")
-                    st.write("⏱️ **15:30 - 16:15:** Alta volatilidad (Picos de subida/bajada).")
-                    st.write("⏱️ **19:00 - 20:30:** Consolidación de tendencia.")
-                    st.write("⏱️ **21:45 - 22:00:** Movimientos de cierre institucional.")
+                    st.write("⏱️ **15:30 - 16:15:** Apertura (Picos de volatilidad).")
+                    st.write("⏱️ **19:00 - 20:30:** Consolidación.")
+                    st.write("⏱️ **21:45 - 22:00:** Cierre institucional.")
 
         except Exception as e:
-            st.error(f"Error al obtener datos en tiempo real.")
+            st.error(f"Error al obtener datos. Revisa el Ticker.")
 
 st.sidebar.write(f"**Actualizado:** {hoy.strftime('%H:%M:%S')}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
