@@ -19,7 +19,6 @@ traducciones = {
 # --- LÓGICA DE CALENDARIO ---
 hoy = datetime.now()
 dia_semana = hoy.weekday() 
-# Si es fin de semana (Sábado=5, Domingo=6), proyectamos al lunes
 if dia_semana == 5: 
     fecha_analisis = hoy + timedelta(days=2)
 elif dia_semana == 6: 
@@ -60,7 +59,7 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y BID/ASK (CON COLORES SOLICITADOS) ---
+            # --- SECCIÓN 2: PRECIOS Y BID/ASK (VERDE Y AZUL) ---
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
             apertura_estimada = (info.get('regularMarketOpen', f_info.last_price)) * cambio
@@ -76,7 +75,7 @@ if ticker:
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{precio_ask:.2f} €</h2>", unsafe_allow_html=True)
 
-            # --- NUEVA SECCIÓN: RANGO DE PRECIOS MÁXIMO/MÍNIMO DEL DÍA ANALIZADO ---
+            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (AMBOS EN AZUL) ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
             
@@ -85,8 +84,9 @@ if ticker:
             suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
             
             r1, r2 = st.columns(2)
-            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
-            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #dc3545; border-radius:5px;'><h3 style='margin:0;'>MÍNIMO a alcanzar hoy:</h3><h1 style='color:#dc3545; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
+            # Ambos paneles ahora configurados en azul (#007bff)
+            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #007bff; border-radius:5px;'><h3 style='margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#007bff; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #007bff; border-radius:5px;'><h3 style='margin:0;'>MÍNIMO alcanzado hoy:</h3><h1 style='color:#007bff; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
             # --- SECCIÓN: DECISIÓN FINAL DE INVERSIÓN ---
             st.markdown("---")
