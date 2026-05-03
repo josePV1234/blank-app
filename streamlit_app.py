@@ -35,7 +35,7 @@ except:
     cambio = 0.92 
 
 if ticker:
-    with st.spinner(f'Analizando datos profundos para {ticker}...'):
+    with st.spinner(f'Analizando órdenes programadas para {ticker}...'):
         try:
             accion = yf.Ticker(ticker)
             f_info = accion.fast_info
@@ -59,52 +59,50 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y BID/ASK (VERDE Y AZUL) ---
+            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS (BID/ASK SIZE) ---
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
             apertura_estimada = (info.get('regularMarketOpen', f_info.last_price)) * cambio
-            precio_bid = info.get('bid', f_info.last_price) * cambio
-            precio_ask = info.get('ask', f_info.last_price) * cambio
+            
+            # Obtener cantidad de acciones (Size) - Yahoo suele darlas en lotes de 100
+            bid_size = info.get('bidSize', 0) * 100 
+            ask_size = info.get('askSize', 0) * 100
 
             col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
             col2.metric("Precio APERTURA", f"{apertura_estimada:.2f} €")
             
+            # Formateo con cantidad de acciones programadas
             col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
-            col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{precio_bid:.2f} €</h2>", unsafe_allow_html=True)
+            col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{info.get('bid', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
+            col3.write(f"📦 **{bid_size:,}** acciones esperando compra")
             
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
-            col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{precio_ask:.2f} €</h2>", unsafe_allow_html=True)
+            col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{info.get('ask', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
+            col4.write(f"📦 **{ask_size:,}** acciones esperando venta")
 
-            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (AHORA EN VERDE) ---
+            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (EN VERDE) ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
-            
             volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
             techo_max = precio_real_eur + (volatilidad_avg * 0.85)
             suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
             
             r1, r2 = st.columns(2)
-            # Ambos paneles configurados en verde (#28a745)
             r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO a alcanzar hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
             r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÍNIMO alcanzado hoy:</h3><h1 style='color:#28a745; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN: DECISIÓN FINAL DE INVERSIÓN ---
+            # --- SECCIÓN: DECISIÓN FINAL ---
             st.markdown("---")
             st.subheader(f"🚩 DECISIÓN FINAL PARA EL DÍA: {fecha_str}")
             rec_key = info.get('recommendationKey', 'none').lower()
-            tendencia_alcista = f_info.last_price > hist['Close'].iloc[-2]
-            
-            if rec_key in ['strong_buy', 'buy'] and tendencia_alcista:
+            if rec_key in ['strong_buy', 'buy']:
                 decision = "COMPRAR"; color_f = "#28a745"
-                exp = f"La IA confirma fuerza para este {fecha_str}."
-            elif rec_key in ['underperform', 'sell', 'strong_sell'] or not tendencia_alcista:
+            elif rec_key in ['underperform', 'sell', 'strong_sell']:
                 decision = "VENDER / EVITAR"; color_f = "#dc3545"
-                exp = f"Se detecta riesgo de caída para este {fecha_str}."
             else:
                 decision = "MANTENER / NEUTRAL"; color_f = "#ffc107"
-                exp = "Mercado sin tendencia clara."
 
-            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1><p style='color:white; font-size:1.1rem;'>{exp}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
 
             # --- SECCIÓN: PUNTOS CRÍTICOS Y HORARIOS ---
             st.markdown("---")
@@ -113,21 +111,18 @@ if ticker:
             with m1:
                 st.markdown("#### 🟢 Mayor SUBIDA")
                 st.write(f"Importe: +{(techo_max - precio_real_eur):.2f} €")
-                st.info("⏰ 15:45 - 16:15 (Apertura USA)")
+                st.info("⏰ 15:45 - 16:15")
             with m2:
                 st.markdown("#### 🔴 Mayor BAJADA")
                 st.write(f"Importe: -{(precio_real_eur - suelo_min):.2f} €")
-                st.error("⏰ 17:20 - 17:50 (Cierre Europeo)")
+                st.error("⏰ 17:20 - 17:50")
 
             # --- HORARIOS TRADE REPUBLIC ---
             st.markdown("---")
             st.subheader("🚀 Operativa Trade Republic")
-            col_tr1, col_tr2 = st.columns(2)
-            col_tr1.write("**📥 Hora COMPRA ideal:** 15:35")
-            col_tr2.write("**📤 Hora VENTA ideal:** 21:40")
+            st.write("**📥 Hora COMPRA:** 15:35 | **📤 Hora VENTA:** 21:40")
 
         except Exception as e:
-            st.error(f"Error técnico al analizar {ticker}.")
+            st.error(f"Error técnico al analizar órdenes de {ticker}.")
 
 st.sidebar.write(f"**Análisis para el:** {fecha_str}")
-st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
