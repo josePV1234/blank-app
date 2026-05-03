@@ -2,8 +2,20 @@ import streamlit as st
 import yfinance as yf
 from datetime import datetime, timedelta
 import numpy as np
+import time
 
+# Configuración de página
 st.set_page_config(page_title="Terminal Pro IA - Estrategia Total", page_icon="💹", layout="wide")
+
+# --- NUEVA FUNCIÓN: AUTORREFRESCO ---
+# Esto hace que la página se recargue sola cada 30 segundos
+st.empty() 
+if 'count' not in st.session_state:
+    st.session_state.count = 0
+
+def autorefresh(seconds):
+    time.sleep(seconds)
+    st.rerun()
 
 st.title("💹 Terminal de Bolsa en Tiempo Real")
 
@@ -33,7 +45,7 @@ except:
     cambio = 0.92 
 
 if ticker:
-    with st.spinner(f'Analizando presión de órdenes para {ticker}...'):
+    with st.spinner(f'Actualizando datos de {ticker} en vivo...'):
         try:
             accion = yf.Ticker(ticker)
             f_info = accion.fast_info
@@ -57,10 +69,11 @@ if ticker:
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS ---
+            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS (FORMATO ESPAÑOL) ---
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
             
+            # Formateamos los números con punto para los miles
             bid_size = info.get('bidSize', 0) * 100 
             ask_size = info.get('askSize', 0) * 100
 
@@ -69,34 +82,30 @@ if ticker:
             
             col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
             col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{info.get('bid', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
-            col3.write(f"📦 **{bid_size:,}** acciones")
+            col3.write(f"📦 **{bid_size:,.0f}**. acciones".replace(",", "."))
             
             col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
             col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{info.get('ask', 0)*cambio:.2f} €</h2>", unsafe_allow_html=True)
-            col4.write(f"📦 **{ask_size:,}** acciones")
+            col4.write(f"📦 **{ask_size:,.0f}**. acciones".replace(",", "."))
 
-            # --- SECCIÓN: COMPARADOR DE PRESIÓN (EXPLICACIÓN SIMPLIFICADA) ---
+            # --- SECCIÓN 3: COMPARADOR DE FUERZA ---
             st.markdown("### ⚖️ Comparador de Fuerza")
             total_ordenes = bid_size + ask_size
             if total_ordenes > 0:
                 porcentaje_compra = (bid_size / total_ordenes) * 100
-                porcentaje_venta = (ask_size / total_ordenes) * 100
-                
                 st.progress(int(porcentaje_compra))
                 c_izq, c_der = st.columns(2)
                 c_izq.write(f"🟢 **Ganas de comprar:** {porcentaje_compra:.1f}%")
-                c_der.write(f"🔵 **Ganas de vender:** {porcentaje_venta:.1f}%")
+                c_der.write(f"🔵 **Ganas de vender:** {100-porcentaje_compra:.1f}%")
                 
                 if porcentaje_compra > 60:
                     st.success("💪 **MUCHOS COMPRADORES:** Hay una fila muy larga de gente queriendo comprar. Esto ayuda a que el precio no caiga y suba más fácil.")
-                elif porcentaje_venta > 60:
+                elif porcentaje_compra < 40:
                     st.error("📉 **MUCHOS VENDEDORES:** Hay demasiada gente queriendo vender ya mismo. El precio tiene mucha presión para bajar.")
                 else:
-                    st.warning("⚖️ **ESTÁ IGUALADO:** No hay un bando que mande claramente. El precio está tranquilo.")
-            else:
-                st.info("Sin datos de profundidad en este momento (Mercado fuera de hora).")
+                    st.warning("⚖️ **ESTÁ IGUALADO:** No hay un bando que mande claramente.")
 
-            # --- SECCIÓN 3: RANGO DE PRECIOS MÁXIMO/MÍNIMO (VERDE) ---
+            # --- SECCIÓN 4: RANGO DE PRECIOS MÁXIMO/MÍNIMO ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
             volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
@@ -111,34 +120,25 @@ if ticker:
             st.markdown("---")
             st.subheader(f"🚩 DECISIÓN FINAL PARA EL DÍA: {fecha_str}")
             rec_key = info.get('recommendationKey', 'none').lower()
-            if rec_key in ['strong_buy', 'buy']:
-                decision = "COMPRAR"; color_f = "#28a745"
-            elif rec_key in ['underperform', 'sell', 'strong_sell']:
-                decision = "VENDER / EVITAR"; color_f = "#dc3545"
-            else:
-                decision = "MANTENER / NEUTRAL"; color_f = "#ffc107"
-
+            color_f = "#28a745" if rec_key in ['strong_buy', 'buy'] else "#dc3545" if rec_key in ['sell', 'strong_sell'] else "#ffc107"
+            decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
             st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN: PUNTOS CRÍTICOS Y HORARIOS ---
+            # --- SECCIÓN: PUNTOS CRÍTICOS Y OPERATIVA ---
             st.markdown("---")
-            st.subheader(f"🔮 ¿Cuándo se producirá el mayor movimiento?")
-            m1, m2 = st.columns(2)
-            with m1:
-                st.markdown("#### 🟢 Mayor SUBIDA")
-                st.write(f"Importe: +{(techo_max - precio_real_eur):.2f} €")
-                st.info("⏰ 15:45 - 16:15")
-            with m2:
-                st.markdown("#### 🔴 Mayor BAJADA")
-                st.write(f"Importe: -{(precio_real_eur - suelo_min):.2f} €")
-                st.error("⏰ 17:20 - 17:50")
-
-            # --- HORARIOS TRADE REPUBLIC ---
-            st.markdown("---")
-            st.subheader("🚀 Operativa Trade Republic")
-            st.write("**📥 Hora COMPRA:** 15:35 | **📤 Hora VENTA:** 21:40")
+            st.subheader("🔮 Puntos Críticos y Trade Republic")
+            p1, p2 = st.columns(2)
+            p1.info(f"**Mayor SUBIDA:** +{(techo_max-precio_real_eur):.2f} € a las 15:45")
+            p1.error(f"**Mayor BAJADA:** -{(precio_real_eur-suelo_min):.2f} € a las 17:20")
+            p2.write(f"📥 **Compra:** 15:35 | 📤 **Venta:** 21:40")
 
         except Exception as e:
-            st.error(f"Error técnico al analizar presión de {ticker}.")
+            st.error(f"Esperando conexión con el mercado...")
 
+# Sidebar con contador de refresco
 st.sidebar.write(f"**Análisis para el:** {fecha_str}")
+st.sidebar.write(f"Próxima actualización en 30 segundos...")
+st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
+
+# Ejecutar el autorrefresco al final
+autorefresh(30)
