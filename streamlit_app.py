@@ -5,6 +5,7 @@ st.set_page_config(page_title="Analizador IA de Bolsa", page_icon="📈")
 st.title("📈 Mi Predictor de Bolsa IA")
 st.write("Escribe el símbolo (Ticker) de la empresa y analizaré la tendencia por ti.")
 
+# Aquí es donde aparecerá el cuadro para escribir en tu web
 ticker = st.text_input("Introduce el símbolo de la empresa (ej: NVDA):", "").upper()
 
 if ticker:
