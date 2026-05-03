@@ -23,6 +23,8 @@ traducciones = {
 
 # --- LÓGICA DE CAMBIO EUR/USD ---
 hoy = datetime.now()
+fecha_hoy = hoy.strftime("%d/%m/%Y") # Formato de fecha español
+
 try:
     eur_usd_data = yf.Ticker("EURUSD=X").fast_info
     cambio = 1 / eur_usd_data.last_price
@@ -67,9 +69,9 @@ if ticker:
             col2.metric("Precio de COMPRA (Oferta)", f"{precio_compra_eur:.2f} €")
             col3.metric("Precio de VENTA (Demanda)", f"{precio_venta_eur:.2f} €")
 
-            # --- SECCIÓN: PROYECCIÓN DE MÁXIMOS Y HORARIOS ---
+            # --- SECCIÓN: PROYECCIÓN DE MÁXIMOS Y HORARIOS (CON FECHA) ---
             st.markdown("---")
-            st.subheader("🚀 Proyección de Impulso Diario")
+            st.subheader(f"🚀 Proyección de Impulso Diario - Análisis para hoy: {fecha_hoy}")
             
             rango_diario = (hist['High'] - hist['Low']).mean() * cambio
             maximo_estimado = precio_real_eur + (rango_diario * 0.5)
@@ -86,7 +88,7 @@ if ticker:
             p1.metric("Máximo Estimado Hoy", f"{maximo_estimado:.2f} €", f"+{((maximo_estimado/precio_real_eur)-1)*100:.2f}%")
             p2.metric("Hora de mayor movimiento", hora_pico)
 
-            # --- SECCIÓN 3: DECISIÓN ESTRATÉGICA ---
+            # --- SECCIÓN 3: DECISIÓN DE EXPERTOS ---
             st.markdown("---")
             st.subheader("🎯 Decisión de los Expertos")
             
@@ -98,6 +100,7 @@ if ticker:
             
             if rec_key_raw in ['strong_buy', 'buy'] or (target_mean and f_info.last_price < target_mean):
                 c1.markdown(f"<h2 style='color:green;'>{rec_esp} ✅</h2>", unsafe_allow_html=True)
+                texto_obj = f"Precio objetivo medio: {target_mean * cambio:.2f} €" if target_mean else "Tendencia de acumulación detectada."
                 c2.success(f"Los grandes bancos están comprando. Objetivo: {target_mean * cambio:.2f} €")
             elif rec_key_raw in ['underperform', 'sell', 'strong_sell']:
                 c1.markdown(f"<h2 style='color:red;'>{rec_esp} 🚨</h2>", unsafe_allow_html=True)
@@ -106,7 +109,7 @@ if ticker:
                 c1.markdown(f"<h2 style='color:orange;'>{rec_esp} ⚖️</h2>", unsafe_allow_html=True)
                 c2.warning("No hay una opinión clara. Mejor esperar.")
 
-            # --- SECCIÓN 4: PRONÓSTICO Y EXPLICACIÓN DE HORARIOS ---
+            # --- SECCIÓN 4: PRONÓSTICO Y EXPLICACIÓN ---
             st.markdown("---")
             if not hist.empty:
                 st.subheader(f"🔮 ¿Qué esperar hoy?")
@@ -125,7 +128,7 @@ if ticker:
                     st.write("⏱️ **21:45 a 22:00:** Justo antes de cerrar, cuando los grandes inversores deciden sus posiciones finales.")
 
         except Exception as e:
-            st.error(f"Error al cargar los datos. Inténtalo de nuevo.")
+            st.error(f"Error al cargar los datos.")
 
 st.sidebar.write(f"**Actualizado:** {hoy.strftime('%H:%M:%S')}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
