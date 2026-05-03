@@ -35,9 +35,8 @@ else:
     fecha_analisis = hoy
 fecha_str = fecha_analisis.strftime("%d/%m/%Y")
 
-# --- LÓGICA DÍA POSTERIOR (Día 5 si hoy es 4) ---
+# --- LÓGICA DÍA POSTERIOR ---
 fecha_posterior = fecha_analisis + timedelta(days=1)
-# Si el día posterior cae en sábado, saltamos al lunes
 if fecha_posterior.weekday() == 5:
     fecha_posterior += timedelta(days=2)
 fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
@@ -116,7 +115,6 @@ if ticker:
             # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
             st.markdown("---")
             st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
-            # Cálculo proyectado para el día siguiente
             pred_max = techo_max + (volatilidad_avg * 0.2)
             pred_min = suelo_min - (volatilidad_avg * 0.2)
             
@@ -132,13 +130,13 @@ if ticker:
             decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
             st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN: PUNTOS CRÍTICOS ---
+            # --- SECCIÓN: PUNTOS CRÍTICOS (FECHA AÑADIDA AQUÍ) ---
             st.markdown("---")
-            st.subheader("⏱️ Operativa Sugerida")
+            st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
             p1, p2 = st.columns(2)
-            p1.info(f"**Mayor SUBIDA esperada:** +{(techo_max-precio_real_eur):.2f} €")
-            p1.error(f"**Mayor BAJADA esperada:** -{(precio_real_eur-suelo_min):.2f} €")
-            p2.write(f"📥 **Compra ideal:** 15:35 | 📤 **Venta ideal:** 21:40")
+            p1.info(f"**Mayor SUBIDA esperada ({fecha_str}):** +{(techo_max-precio_real_eur):.2f} €")
+            p1.error(f"**Mayor BAJADA esperada ({fecha_str}):** -{(precio_real_eur-suelo_min):.2f} €")
+            p2.write(f"📥 **Compra ideal ({fecha_str}):** 15:35 | 📤 **Venta ideal ({fecha_str}):** 21:40")
 
         except Exception as e:
             st.error(f"Error al obtener datos. Reintentando...")
