@@ -2,22 +2,21 @@ import streamlit as st
 import yfinance as yf
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Analizador Predictivo Total", page_icon="🔮")
+st.set_page_config(page_title="Analizador Predictivo Realista", page_icon="🔮")
 
-st.title("🔮 Analizador de Bolsa Total (EUR)")
-st.write("Análisis profundo de precios, máximos y cierres estimados.")
+st.title("🔮 Analizador de Bolsa Inteligente (EUR)")
+st.write("Análisis de precios realistas y horarios de máxima intensidad.")
 
-ticker = st.text_input("Introduce el símbolo (ej: NVDA, TSLA, AMZN):", "").upper()
+ticker = st.text_input("Introduce el símbolo (ej: NVDA, TSLA):", "").upper()
 
-# Calcular fechas
+# Fechas
 hoy = datetime.now()
 mañana = hoy + timedelta(days=1)
 fecha_str = mañana.strftime("%d/%m/%Y")
 
 if ticker:
-    with st.spinner(f'Ejecutando modelos de predicción para {ticker}...'):
+    with st.spinner(f'Calculando previsiones realistas para {ticker}...'):
         try:
-            # 1. Obtener datos y tipo de cambio USD/EUR
             accion = yf.Ticker(ticker)
             hist = accion.history(period="10d")
             info = accion.info
@@ -25,52 +24,40 @@ if ticker:
             cambio = 1 / eur_usd 
             
             if not hist.empty:
-                # Precios de Hoy
-                precio_cierre_hoy_usd = hist['Close'].iloc[-1]
-                precio_cierre_hoy_eur = precio_cierre_hoy_usd * cambio
+                precio_cierre_hoy = hist['Close'].iloc[-1] * cambio
                 
-                # 2. Estimaciones para Mañana (Basado en volatilidad y precio objetivo)
-                volatilidad = hist['Close'].pct_change().std() # Desviación para el máximo
-                objetivo_mediano_usd = info.get('targetMedianPrice', precio_cierre_hoy_usd)
-                dif_objetivo = (objetivo_mediano_usd - precio_cierre_hoy_usd) / 200 # Ajuste diario
-                
-                # Cálculo de Máximo y Cierre
-                precio_max_est_usd = precio_cierre_hoy_usd * (1 + volatilidad + abs(dif_objetivo))
-                precio_cierre_est_usd = precio_cierre_hoy_usd + dif_objetivo
-                
-                # Conversión a Euros
-                precio_max_est_eur = precio_max_est_usd * cambio
-                precio_cierre_est_eur = precio_cierre_est_usd * cambio
-                
-                # 3. Mostrar Resultados principales
-                st.metric("Precio Cierre Hoy", f"{precio_cierre_hoy_eur:.2f} €")
+                # 1. CÁLCULO MÁXIMO REALISTA (Basado en la media de máximos de la última semana)
+                media_oscilacion = (hist['High'] - hist['Low']).mean() * cambio
+                precio_max_realista = precio_cierre_hoy + (media_oscilacion * 0.7)
+                precio_cierre_est = precio_cierre_hoy + (media_oscilacion * 0.1)
+
+                # Mostrar Precios Principales
+                st.metric("Precio Cierre Hoy", f"{precio_cierre_hoy:.2f} €")
                 
                 col1, col2 = st.columns(2)
-                col1.metric(f"Máximo Estimado ({fecha_str})", f"{precio_max_est_eur:.2f} €")
-                col2.metric(f"Cierre Estimado ({fecha_str})", f"{precio_cierre_est_eur:.2f} €")
+                col1.metric(f"Máximo Estimado ({fecha_str})", f"{precio_max_realista:.2f} €")
+                col2.metric(f"Cierre Estimado ({fecha_str})", f"{precio_cierre_est:.2f} €")
 
                 st.markdown("---")
                 
-                # 4. Diagnóstico Detallado
-                rec_en = info.get('recommendationKey', 'none')
-                velocidad = "RÁPIDAMENTE" if volatilidad > 0.03 else "MODERADAMENTE" if volatilidad > 0.01 else "LENTAMENTE"
+                # 2. HORARIOS DE PICOS (Análisis del mercado americano y europeo)
+                st.subheader("⏰ Picos de Intensidad Previstos:")
+                st.write(f"Para el día {fecha_str}, se prevé mayor volatilidad en estos tramos:")
                 
-                if precio_cierre_est_eur > precio_cierre_hoy_eur:
-                    st.success(f"🚀 EL DÍA {fecha_str} LA ACCIÓN SUBIRÁ {velocidad}")
+                st.info("📌 **15:30 - 16:30 (Apertura USA):** Pico de máxima intensidad. Es cuando se producen los movimientos más bruscos de entrada.")
+                st.info("📌 **18:00 - 19:30 (Cierre Europeo):** Segundo pico de volatilidad por el ajuste de carteras internacionales.")
+                st.info("📌 **21:30 - 22:00 (Cierre USA):** Tramo de 'fuerza final' donde se define el precio de cierre estimado.")
+
+                # 3. DIAGNÓSTICO
+                st.markdown("---")
+                if precio_cierre_est > precio_cierre_hoy:
+                    st.success(f"🚀 EL DÍA {fecha_str} LA ACCIÓN SUBIRÁ LENTAMENTE")
                     st.balloons()
                 else:
-                    st.error(f"📉 EL DÍA {fecha_str} LA ACCIÓN SEGUIRÁ CAYENDO {velocidad}")
+                    st.error(f"📉 EL DÍA {fecha_str} LA ACCIÓN SEGUIRÁ CAYENDO MODERADAMENTE")
 
-                # Previsión a futuro
-                st.subheader(f"🔭 Proyección para los próximos días:")
-                if rec_en in ['strong_buy', 'buy']:
-                    st.info("⬆️ **AL ALZA:** Los analistas esperan nuevos máximos en el corto plazo.")
-                elif rec_en in ['sell', 'strong_sell']:
-                    st.warning("⬇️ **HACIA ABAJO:** Se detecta presión vendedora sostenida.")
-                else:
-                    st.write("➡️ **LATERAL:** Se prevé estabilidad sin cambios bruscos.")
-
-                # Consenso Wall Street
+                # Consenso
+                rec_en = info.get('recommendationKey', 'none')
                 traduccion = {"strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER", "sell": "VENDER", "strong_sell": "VENTA FUERTE"}
                 st.info(f"💡 **Consenso de Wall Street:** {traduccion.get(rec_en, 'NEUTRAL')}")
                 
