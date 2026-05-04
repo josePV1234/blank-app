@@ -34,7 +34,7 @@ fecha_posterior = hoy_madrid + timedelta(days=1)
 if fecha_posterior.weekday() == 5: fecha_posterior += timedelta(days=2)
 fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
 
-# --- LÓGICA DE CAMBIO EUR/USD ---
+# --- CAMBIO EUR/USD ---
 try:
     eur_usd_data = yf.Ticker("EURUSD=X").fast_info
     cambio = 1 / eur_usd_data.last_price
@@ -50,7 +50,7 @@ if ticker_input:
         usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
         euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
         
-        # --- LÓGICA DE TICKERS DUALES ---
+        # --- LÓGICA DE TICKERS (Dual) ---
         ticker_principal = ticker_input
         ticker_precio = ticker_input
         es_suplente = False
@@ -117,32 +117,31 @@ if ticker_input:
         s_min = precio_base - (vol * 0.70)
         
         r1, r2 = st.columns(2)
-        r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy ({fecha_str}):</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
-        r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy ({fecha_str}):</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
+        r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
+        r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
         # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
         st.markdown("---")
         st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
         p1, p2 = st.columns(2)
-        p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto ({fecha_post_str}):</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
-        p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto ({fecha_post_str}):</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
+        p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto:</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
+        p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto:</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN: RECOMENDACIÓN Y TARGET PRICE ---
+        # --- SECCIÓN: DECISIÓN (FIXED) ---
         st.markdown("---")
+        # Aquí forzamos que use la recomendación del Ticker USA (main) aunque el precio sea el EU
         rec_key = info_main.get('recommendationKey', 'buy').lower()
-        target_price = info_main.get('targetMeanPrice', 275.25) * cambio # Lo convertimos a EUR
         decision = traducciones.get(rec_key, "COMPRAR")
         color_f = "#28a745" if "buy" in rec_key else "#dc3545" if "sell" in rec_key else "#ffc107"
-        
-        st.markdown(f"""
-        <div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'>
-            <h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1>
-            <h3 style='color:white; margin-top:10px;'>Precio Objetivo Analistas: {target_price:.2f} €</h3>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
+
+        # --- OPERATIVA ---
+        st.markdown("---")
+        st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
+        st.info(f"📥 Compra: 15:35 | 📤 Venta: 21:40")
 
     except Exception as e:
-        st.info("Sincronizando flujo de datos...")
+        st.info("Sincronizando calificación de expertos...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
