@@ -17,20 +17,31 @@ st.title("💹 Terminal de Bolsa en Tiempo Real")
 
 ticker = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "NVDA").upper()
 
-# --- TRADUCCIONES ---
-traducciones = {"strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER", "neutral": "NEUTRAL", "sell": "VENDER", "strong_sell": "VENTA FUERTE", "none": "SIN CALIFICACIÓN"}
+# --- DICCIONARIO DE TRADUCCIÓN ---
+traducciones = {
+    "strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER",
+    "neutral": "NEUTRAL", "sell": "VENDER", "strong_sell": "VENTA FUERTE",
+    "underperform": "BAJO RENDIMIENTO", "none": "SIN CALIFICACIÓN"
+}
 
-# --- LÓGICA HORARIA (MADRID) ---
+# --- LÓGICA DE CALENDARIO (MADRID) ---
 tz_madrid = pytz.timezone('Europe/Madrid')
 hoy_madrid = datetime.now(tz_madrid)
-fecha_str = hoy_madrid.strftime("%d/%m/%Y")
+dia_semana = hoy_madrid.weekday() 
 
-# --- FECHA MAÑANA ---
-fecha_post = hoy_madrid + timedelta(days=1)
-if fecha_post.weekday() == 5: fecha_post += timedelta(days=2)
-fecha_post_str = fecha_post.strftime("%d/%m/%Y")
+if dia_semana >= 5: 
+    fecha_analisis = hoy_madrid + timedelta(days=(7 - dia_semana))
+else:
+    fecha_analisis = hoy_madrid
+fecha_str = fecha_analisis.strftime("%d/%m/%Y")
 
-# --- CAMBIO EUR/USD ---
+# --- LÓGICA DÍA POSTERIOR ---
+fecha_posterior = fecha_analisis + timedelta(days=1)
+if fecha_posterior.weekday() == 5:
+    fecha_posterior += timedelta(days=2)
+fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
+
+# --- LÓGICA DE CAMBIO EUR/USD ---
 try:
     eur_usd_data = yf.Ticker("EURUSD=X").fast_info
     cambio = 1 / eur_usd_data.last_price
@@ -38,71 +49,113 @@ except:
     cambio = 0.92 
 
 if ticker:
-    with st.spinner(f'Analizando {ticker}...'):
+    with st.spinner(f'Actualizando datos de {ticker}...'):
         try:
             accion = yf.Ticker(ticker)
             f_info = accion.fast_info
             hist = accion.history(period="5d")
-            # Forzamos la actualización de info cada vez
-            info = accion.info 
+            try: info = accion.info
+            except: info = {}
 
-            # --- SECCIÓN 1: ESTADO MERCADOS ---
+            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS ---
             st.subheader("🏦 Estado de los Mercados Globales")
             hora_madrid = hoy_madrid.time()
             tz_ny = pytz.timezone('America/New_York')
             hora_ny = datetime.now(tz_ny).time()
             
-            euro_abierto = (hora_madrid >= datetime.strptime("09:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and hoy_madrid.weekday() < 5)
-            usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and hoy_madrid.weekday() < 5)
+            usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
+            euro_abierto = (hora_madrid >= datetime.strptime("09:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
+            tr_abierto = (hora_madrid >= datetime.strptime("07:30", "%H:%M").time() and hora_madrid <= datetime.strptime("23:00", "%H:%M").time() and dia_semana < 5)
 
-            c1, c2, c3 = st.columns(3)
-            c1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
-            c2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
-            c3.info(f"**Trade Republic:** :{'green'}[ACTIVO]")
+            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
+            col_m2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
+            col_m3.info(f"**Trade Republic:** :{'green' if tr_abierto else 'red'}[{'ACTIVO' if tr_abierto else 'INACTIVO'}]")
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS REALES ---
-            # Si Bid/Ask son 0 porque el mercado está cerrado, usamos el último precio
-            precio_actual = f_info.last_price * cambio
-            bid = info.get('bid', f_info.last_price) * cambio
-            ask = info.get('ask', f_info.last_price) * cambio
-            
+            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS ---
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Último Precio Real", f"{precio_actual:.2f} €")
+            precio_real_eur = f_info.last_price * cambio
+            
+            # Si el bid/ask es 0 (mercado cerrado), usamos el precio actual de referencia
+            bid_val = info.get('bid', f_info.last_price) * cambio
+            ask_val = info.get('ask', f_info.last_price) * cambio
+            bid_size = info.get('bidSize', 0) * 100 
+            ask_size = info.get('askSize', 0) * 100
+
+            col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
             col2.metric("Precio APERTURA", f"{(info.get('regularMarketOpen', f_info.last_price)*cambio):.2f} €")
             
-            # Estilo mejorado para que no parezca "apagado"
-            col3.markdown(f"<div style='background-color:#1e1e1e; padding:10px; border-radius:5px; border-bottom: 3px solid #28a745;'><p style='color:#28a745; font-weight:bold; margin:0;'>EL QUE COMPRA OFRECE</p><h2 style='margin:0;'>{bid:.2f} €</h2></div>", unsafe_allow_html=True)
-            col4.markdown(f"<div style='background-color:#1e1e1e; padding:10px; border-radius:5px; border-bottom: 3px solid #007bff;'><p style='color:#007bff; font-weight:bold; margin:0;'>EL QUE VENDE PIDE</p><h2 style='margin:0;'>{ask:.2f} €</h2></div>", unsafe_allow_html=True)
-
-            # --- SECCIÓN 4: RANGOS Y PREDICCIÓN ---
-            st.markdown("---")
-            volatilidad = (hist['High'] - hist['Low']).mean() * cambio
+            col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
+            col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{bid_val:.2f} €</h2>", unsafe_allow_html=True)
+            col3.write(f"📦 **{bid_size:,.0f}**. acciones".replace(",", "."))
             
-            # Hoy
+            col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
+            col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{ask_val:.2f} €</h2>", unsafe_allow_html=True)
+            col4.write(f"📦 **{ask_size:,.0f}**. acciones".replace(",", "."))
+
+            # --- SECCIÓN 3: COMPARADOR DE FUERZA ---
+            st.markdown("### ⚖️ Comparador de Fuerza")
+            total_ordenes = bid_size + ask_size
+            if total_ordenes > 0:
+                porcentaje_compra = (bid_size / total_ordenes) * 100
+                st.progress(int(porcentaje_compra))
+                c_izq, c_der = st.columns(2)
+                c_izq.write(f"🟢 **Ganas de comprar:** {porcentaje_compra:.1f}%")
+                c_der.write(f"🔵 **Ganas de vender:** {100-porcentaje_compra:.1f}%")
+                
+                if porcentaje_compra > 60:
+                    st.success("💪 **MUCHOS COMPRADORES:** Hay una fila muy larga de gente queriendo comprar.")
+                elif porcentaje_compra < 40:
+                    st.error("📉 **MUCHOS VENDEDORES:** Hay demasiada gente queriendo vender.")
+            else:
+                st.warning("⚖️ **SIN DATOS DE ÓRDENES:** Mercado cerrado o sin volumen en tiempo real.")
+
+            # --- SECCIÓN 4: RANGO DE PRECIOS HOY ---
+            st.markdown("---")
+            st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
+            volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
+            techo_max = precio_real_eur + (volatilidad_avg * 0.85)
+            suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
+            
             r1, r2 = st.columns(2)
-            r1.success(f"### MÁXIMO hoy ({fecha_str}):\n# {precio_actual + (volatilidad*0.8):.2f} €")
-            r2.error(f"### MÍNIMO hoy ({fecha_str}):\n# {precio_actual - (volatilidad*0.7):.2f} €")
+            r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{techo_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#ff4b4b; margin:0;'>{suelo_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
+            # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
             st.markdown("---")
-            st.subheader(f"🔮 Predicción Mañana: {fecha_post_str}")
-            p1, p2 = st.columns(2)
-            # Predicción calculada para mañana
-            p1.info(f"### MÁXIMO Previsto:\n# {precio_actual + (volatilidad*1.2):.2f} €")
-            p2.warning(f"### MÍNIMO Previsto:\n# {precio_actual - (volatilidad*0.9):.2f} €")
+            st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
+            pred_max = techo_max + (volatilidad_avg * 0.2)
+            pred_min = suelo_min - (volatilidad_avg * 0.2)
+            
+            pcol1, pcol2 = st.columns(2)
+            pcol1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Estimado ({fecha_post_str}):</h3><h1 style='color:#00d4ff; margin:0;'>{pred_max:.2f} €</h1></div>", unsafe_allow_html=True)
+            pcol2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Estimado ({fecha_post_str}):</h3><h1 style='color:#ffaa00; margin:0;'>{pred_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
-            # --- DECISIÓN ---
+            # --- SECCIÓN: DECISIÓN FINAL ---
             st.markdown("---")
-            rec = info.get('recommendationKey', 'none').lower()
-            color = "#28a745" if "buy" in rec else "#dc3545" if "sell" in rec else "#ffc107"
-            st.markdown(f"<div style='background-color:{color}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {traducciones.get(rec, 'MANTENER')}</h1></div>", unsafe_allow_html=True)
+            st.subheader(f"🚩 DECISIÓN FINAL PARA EL DÍA: {fecha_str}")
+            rec_key = info.get('recommendationKey', 'none').lower()
+            color_f = "#28a745" if rec_key in ['strong_buy', 'buy'] else "#dc3545" if rec_key in ['sell', 'strong_sell'] else "#ffc107"
+            decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
+            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
+
+            # --- SECCIÓN: OPERATIVA SUGERIDA ---
+            st.markdown("---")
+            st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
+            op1, op2 = st.columns(2)
+            op1.info(f"**Mayor SUBIDA esperada ({fecha_str}):** +{(techo_max-precio_real_eur):.2f} €")
+            op1.error(f"**Mayor BAJADA esperada ({fecha_str}):** -{(precio_real_eur-suelo_min):.2f} €")
+            op2.write(f"📥 **Compra ideal ({fecha_str}):** 15:35 | 📤 **Venta ideal ({fecha_str}):** 21:40")
 
         except Exception as e:
-            st.error("Mercado fuera de hora o Ticker no válido.")
+            st.error(f"Error en la conexión con los datos. Reintentando...")
 
-# Sidebar info
-st.sidebar.write(f"**Hora Madrid:** {hoy_madrid.strftime('%H:%M:%S')}")
-st.sidebar.write(f"Refresco automático: **30s**")
+# Sidebar
+st.sidebar.write(f"**Reloj Madrid:** {hoy_madrid.strftime('%H:%M:%S')}")
+st.sidebar.write(f"**Análisis:** {fecha_str}")
+st.sidebar.write(f"**Proyección:** {fecha_post_str}")
+st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
 
 autorefresh(30)
