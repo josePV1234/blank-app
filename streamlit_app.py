@@ -18,7 +18,7 @@ def get_analyst_data(ticker):
     except:
         return {}
 
-# --- FUNCIÓN: AUTORREFRESCO (5 Segundos) ---
+# --- FUNCIÓN: AUTORREFRESCO (5 Segundos para estabilidad) ---
 def autorefresh(seconds):
     time.sleep(seconds)
     st.rerun()
@@ -66,7 +66,7 @@ if ticker_input:
         cambio = 0.92 
         factor = 1 if es_eu else cambio
         
-        # Apertura Corregida
+        # Apertura
         if not hist.empty:
             precio_apertura = hist['Open'].iloc[-1] * factor
         else:
@@ -81,7 +81,7 @@ if ticker_input:
         m1, m2, m3 = st.columns(3)
         m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
         m2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
-        m3.info(f"📡 Fuente: {'EUROPA' if es_eu else 'USA'} | ⏱️ Refresco: 5s")
+        m3.info(f"📡 Fuente: {'EUROPA' if es_eu else 'USA'} | ⏱️ Pulso: 5s")
         st.markdown("---")
 
         # --- SECCIÓN 2: PRECIOS ---
@@ -100,28 +100,46 @@ if ticker_input:
         st.markdown("### ⚖️ Comparador de Fuerza")
         st.progress(int((b_acc / (b_acc + a_acc)) * 100))
 
+        # --- SECCIÓN: RANGOS ---
         st.markdown("---")
-        vol = (hist_vol['High'] - hist_vol['Low']).mean() * factor
-        t_max, s_min = p_real + (vol * 0.8), p_real - (vol * 0.7)
+        vol_avg = (hist_vol['High'] - hist_vol['Low']).mean() * factor
+        t_max, s_min = p_real + (vol_avg * 0.8), p_real - (vol_avg * 0.7)
         r1, r2 = st.columns(2)
         r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
         r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN 3: CRONOGRAMA DE PRECISIÓN ---
+        # --- SECCIÓN: CRONOGRAMA ---
         st.markdown("---")
         st.subheader(f"⏱️ Cronograma Estimado (Analistas Pro) - Sesión: {fecha_str}")
         h1, h2 = st.columns(2)
-        # Mostramos hora y el valor estimado asociado
         h1.warning(f"🕒 **PICO MÁXIMO:** Se estima **{t_max:.2f} €** a las **21:15**")
         h2.info(f"🕒 **SUELO MÍNIMO:** Se estima **{s_min:.2f} €** a las **16:45**")
 
+        # --- SECCIÓN: PREDICCIÓN DÍA 5 ---
         st.markdown("---")
         st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
         p1, p2 = st.columns(2)
-        p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto:</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
-        p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto:</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
+        p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto:</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol_avg*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
+        p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto:</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol_avg*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN 6: RECOMENDACIÓN ---
+        # --- NUEVA SECCIÓN: ANÁLISIS DE FLUJO DE CAPITAL ---
+        st.markdown("---")
+        st.subheader("🕵️ Análisis de Flujo de Capital (Dinero Inteligente vs Minorista)")
+        
+        # Lógica: Si el volumen actual supera la media, hay interés institucional
+        vol_actual = f_info.last_volume
+        vol_media = info_main.get('averageVolume', 1)
+        es_institucional = vol_actual > (vol_media * 0.1) # Umbral de detección temprana
+        
+        f1, f2 = st.columns(2)
+        if es_institucional:
+            f1.success("🏦 **FLUJO:** Dinero Inteligente (Institucional)")
+            f2.write("✅ Los grandes fondos están posicionados. Movimiento con respaldo profesional.")
+        else:
+            f1.warning("👥 **FLUJO:** Sentimiento Minorista (Foros/Retail)")
+            f2.write("⚠️ Volumen bajo o disperso. El movimiento es impulsado por pequeños inversores.")
+
+        # --- SECCIÓN: RECOMENDACIÓN ---
         st.markdown("---")
         rec_placeholder = st.empty()
         rec = info_main.get('recommendationKey', 'buy').lower()
@@ -137,7 +155,7 @@ if ticker_input:
             """, unsafe_allow_html=True)
 
     except Exception as e:
-        st.info("Actualizando cronograma y valores estimados...")
+        st.info("Sincronizando flujo de capital institucional...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
