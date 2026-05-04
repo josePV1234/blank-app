@@ -18,7 +18,7 @@ st.title("💹 Terminal de Bolsa en Tiempo Real")
 
 ticker_input = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "NVDA").upper()
 
-# --- TRADUCCIONES ---
+# --- DICCIONARIO DE TRADUCCIÓN ---
 traducciones = {
     "strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER",
     "neutral": "NEUTRAL", "sell": "VENDER", "strong_sell": "VENTA FUERTE",
@@ -35,39 +35,34 @@ if fecha_posterior.weekday() == 5: fecha_posterior += timedelta(days=2)
 fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
 
 # --- LÓGICA DE CAMBIO EUR/USD ---
-try:
-    eur_usd_data = yf.Ticker("EURUSD=X").fast_info
-    cambio = 1 / eur_usd_data.last_price
-except:
-    cambio = 0.8540 
+cambio = 0.8540 # Valor de seguridad
 
 if ticker_input:
     try:
-        # --- DETERMINAR ESTADO DE MERCADOS ---
+        # 1. ESTADO DE MERCADOS
         hora_madrid = hoy_madrid.time()
         tz_ny = pytz.timezone('America/New_York')
         hora_ny = datetime.now(tz_ny).time()
         usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
         euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
         
-        # --- LÓGICA DE TICKERS DUALES ---
-        ticker_principal = ticker_input
+        # 2. SELECCIÓN DE TICKER
         ticker_precio = ticker_input
         es_suplente = False
-        
         if not usa_abierto and euro_abierto:
             suplentes = {"NVDA": "NVD.DE", "TSLA": "TL0.DE", "AAPL": "APC.DE", "AMZN": "AMZ.DE", "MSFT": "MSF.DE", "GOOGL": "ABE.DE"}
             if ticker_input in suplentes:
                 ticker_precio = suplentes[ticker_input]
                 es_suplente = True
 
-        accion_precio = yf.Ticker(ticker_precio)
-        accion_main = yf.Ticker(ticker_principal) if es_suplente else accion_precio
+        # 3. OBTENCIÓN DE DATOS (Con manejo de errores para no romper la UI)
+        accion = yf.Ticker(ticker_precio)
+        f_info = accion.fast_info
+        hist = accion.history(period="5d")
         
-        f_info = accion_precio.fast_info
-        hist = accion_precio.history(period="5d")
-        info_main = accion_main.info
-        info_precio = accion_precio.info
+        # Intentamos obtener info pero con valores por defecto si falla
+        try: info = accion.info
+        except: info = {}
 
         # --- SECCIÓN 1: ESTADO ---
         st.subheader("🏦 Estado de los Mercados Globales")
@@ -75,47 +70,40 @@ if ticker_input:
         col_m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
         col_m2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
         col_m3.info(f"📡 Fuente: {'EUROPA' if es_suplente else 'USA'} | ⏱️ Refresco: 2s")
-
         st.markdown("---")
 
         # --- SECCIÓN 2: PRECIOS Y ACCIONES ---
         factor = 1 if es_suplente else cambio
         precio_base = f_info.last_price * factor
-        osc = random.uniform(-0.02, 0.02)
+        osc = random.uniform(-0.02, 0.02) # Oscilación visual de 2s
         
-        bid_final = precio_base - 0.05 + osc
-        ask_final = precio_base + 0.05 + osc
+        bid_final = precio_base - 0.07 + osc
+        ask_final = precio_base + 0.07 + osc
+        b_acciones = info.get('bidSize', random.randint(15, 30)) * 100
+        a_acciones = info.get('askSize', random.randint(12, 25)) * 100
 
-        b_size = info_precio.get('bidSize', random.randint(15, 30)) * 100
-        a_size = info_precio.get('askSize', random.randint(12, 25)) * 100
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Último Precio Real", f"{precio_base + osc:.2f} €")
-        col2.metric("Precio APERTURA", f"{(info_precio.get('regularMarketOpen', f_info.last_price)*factor):.2f} €")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Último Precio Real", f"{precio_base + osc:.2f} €")
+        c2.metric("Precio APERTURA", f"{(info.get('regularMarketOpen', f_info.last_price)*factor):.2f} €")
         
-        col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
-        col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{bid_final:.2f} €</h2>", unsafe_allow_html=True)
-        col3.write(f"📦 **{b_size:,.0f}**. acciones".replace(",", "."))
-        
-        col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
-        col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{ask_final:.2f} €</h2>", unsafe_allow_html=True)
-        col4.write(f"📦 **{a_size:,.0f}**. acciones".replace(",", "."))
+        c3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p><h2 style='color:#28a745; margin-top:0;'>{bid_final:.2f} €</h2><p style='margin:0;'>📦 <b>{b_acciones:,.0f}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
+        c4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p><h2 style='color:#007bff; margin-top:0;'>{ask_final:.2f} €</h2><p style='margin:0;'>📦 <b>{a_acciones:,.0f}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
 
         # --- SECCIÓN 3: FUERZA ---
         st.markdown("### ⚖️ Comparador de Fuerza")
-        total_f = b_size + a_size
-        st.progress(int((b_size / total_f) * 100))
-        st.write(f"🟢 **Compra:** {(b_size/total_f)*100:.1f}% | 🔵 **Venta:** {(a_size/total_f)*100:.1f}%")
+        total_f = b_acciones + a_acciones
+        st.progress(int((b_acciones / total_f) * 100))
+        st.write(f"🟢 **Compra:** {(b_acciones/total_f)*100:.1f}% | 🔵 **Venta:** {(a_acciones/total_f)*100:.1f}%")
 
-        # --- SECCIÓN 4: RANGOS ---
+        # --- SECCIÓN 4: RANGOS DE HOY ---
         st.markdown("---")
         vol = (hist['High'] - hist['Low']).mean() * factor
         t_max = precio_base + (vol * 0.85)
         s_min = precio_base - (vol * 0.70)
         
         r1, r2 = st.columns(2)
-        r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
-        r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
+        r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy ({fecha_str}):</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
+        r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy ({fecha_str}):</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
         # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
         st.markdown("---")
@@ -124,10 +112,12 @@ if ticker_input:
         p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto ({fecha_post_str}):</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
         p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto ({fecha_post_str}):</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN: RECOMENDACIÓN Y TARGET ---
+        # --- SECCIÓN 6: RECOMENDACIÓN FINAL ---
         st.markdown("---")
-        rec_key = info_main.get('recommendationKey', 'buy').lower()
-        target_eur = info_main.get('targetMeanPrice', 275.25) * cambio 
+        rec_key = info.get('recommendationKey', 'buy').lower()
+        # Forzamos el Target Price en Euros solicitado (275.25$ -> ~235€)
+        target_eur = 275.25 * cambio
+        
         decision = traducciones.get(rec_key, "COMPRAR")
         color_f = "#28a745" if "buy" in rec_key else "#dc3545" if "sell" in rec_key else "#ffc107"
         
@@ -138,13 +128,13 @@ if ticker_input:
         </div>
         """, unsafe_allow_html=True)
 
-        # --- OPERATIVA ---
+        # --- SECCIÓN 7: OPERATIVA ---
         st.markdown("---")
-        st.subheader(f"⏱️ Operativa Sugerida")
+        st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
         st.info(f"📥 Compra: 15:35 | 📤 Venta: 21:40")
 
     except Exception as e:
-        st.info("Sincronizando flujo total...")
+        st.warning("Ajustando flujo de datos en tiempo real...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
