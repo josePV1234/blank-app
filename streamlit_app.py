@@ -3,6 +3,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import numpy as np
 import time
+import pytz  # Importante para las zonas horarias
 
 # Configuración de página
 st.set_page_config(page_title="Terminal Pro IA - Estrategia Total", page_icon="💹", layout="wide")
@@ -27,12 +28,15 @@ traducciones = {
 }
 
 # --- LÓGICA DE CALENDARIO ---
-hoy = datetime.now()
-dia_semana = hoy.weekday() 
+# Forzamos hora de Madrid para que el estado de mercado sea real
+tz_madrid = pytz.timezone('Europe/Madrid')
+hoy_madrid = datetime.now(tz_madrid)
+dia_semana = hoy_madrid.weekday() 
+
 if dia_semana >= 5: 
-    fecha_analisis = hoy + timedelta(days=(7 - dia_semana))
+    fecha_analisis = hoy_madrid + timedelta(days=(7 - dia_semana))
 else:
-    fecha_analisis = hoy
+    fecha_analisis = hoy_madrid
 fecha_str = fecha_analisis.strftime("%d/%m/%Y")
 
 # --- LÓGICA DÍA POSTERIOR ---
@@ -57,14 +61,17 @@ if ticker:
             try: info = accion.info
             except: info = {}
 
-            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS ---
+            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS (CORREGIDA) ---
             st.subheader("🏦 Estado de los Mercados Globales")
-            hora_actual = datetime.now().time()
-            hora_ny = (datetime.utcnow() - timedelta(hours=4)).time()
+            
+            # Hora actual en Madrid y New York
+            hora_madrid = hoy_madrid.time()
+            tz_ny = pytz.timezone('America/New_York')
+            hora_ny = datetime.now(tz_ny).time()
             
             usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
-            euro_abierto = (hora_actual >= datetime.strptime("09:00", "%H:%M").time() and hora_actual <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
-            tr_abierto = (hora_actual >= datetime.strptime("07:30", "%H:%M").time() and hora_actual <= datetime.strptime("23:00", "%H:%M").time() and dia_semana < 5)
+            euro_abierto = (hora_madrid >= datetime.strptime("09:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
+            tr_abierto = (hora_madrid >= datetime.strptime("07:30", "%H:%M").time() and hora_madrid <= datetime.strptime("23:00", "%H:%M").time() and dia_semana < 5)
 
             col_m1, col_m2, col_m3 = st.columns(3)
             col_m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
@@ -130,7 +137,7 @@ if ticker:
             decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
             st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
 
-            # --- SECCIÓN: PUNTOS CRÍTICOS (FECHA AÑADIDA AQUÍ) ---
+            # --- SECCIÓN: PUNTOS CRÍTICOS ---
             st.markdown("---")
             st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
             p1, p2 = st.columns(2)
@@ -142,6 +149,7 @@ if ticker:
             st.error(f"Error al obtener datos. Reintentando...")
 
 # Sidebar
+st.sidebar.write(f"**Día Actual (Madrid):** {hoy_madrid.strftime('%H:%M:%S')}")
 st.sidebar.write(f"**Día Actual:** {fecha_str}")
 st.sidebar.write(f"**Próximo Análisis:** {fecha_post_str}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
