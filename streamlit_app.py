@@ -57,14 +57,15 @@ if ticker:
             try: info = accion.info
             except: info = {}
 
-            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS ---
+            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS (AJUSTADO A 08:00) ---
             st.subheader("🏦 Estado de los Mercados Globales")
             hora_madrid = hoy_madrid.time()
             tz_ny = pytz.timezone('America/New_York')
             hora_ny = datetime.now(tz_ny).time()
             
+            # Ajuste: Marcamos abierto desde las 08:00 para pre-mercado
             usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
-            euro_abierto = (hora_madrid >= datetime.strptime("09:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
+            euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
             tr_abierto = (hora_madrid >= datetime.strptime("07:30", "%H:%M").time() and hora_madrid <= datetime.strptime("23:00", "%H:%M").time() and dia_semana < 5)
 
             col_m1, col_m2, col_m3 = st.columns(3)
@@ -78,7 +79,6 @@ if ticker:
             col1, col2, col3, col4 = st.columns(4)
             precio_real_eur = f_info.last_price * cambio
             
-            # Si el bid/ask es 0 (mercado cerrado), usamos el precio actual de referencia
             bid_val = info.get('bid', f_info.last_price) * cambio
             ask_val = info.get('ask', f_info.last_price) * cambio
             bid_size = info.get('bidSize', 0) * 100 
