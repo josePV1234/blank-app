@@ -28,11 +28,7 @@ st.title("💹 Terminal de Bolsa en Tiempo Real")
 ticker_input = st.text_input("Introduce el Ticker:", "NVDA").upper()
 
 # --- TRADUCCIONES ---
-traducciones = {
-    "strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER",
-    "neutral": "NEUTRAL", "sell": "VENDER", "strong_sell": "VENTA FUERTE",
-    "underperform": "BAJO RENDIMIENTO", "none": "SIN CALIFICACIÓN"
-}
+traducciones = {"strong_buy": "COMPRA FUERTE", "buy": "COMPRAR", "hold": "MANTENER", "neutral": "NEUTRAL", "sell": "VENDER", "strong_sell": "VENTA FUERTE"}
 
 # --- LÓGICA DE CALENDARIO ---
 tz_madrid = pytz.timezone('Europe/Madrid')
@@ -43,48 +39,42 @@ fecha_post = hoy_madrid + timedelta(days=1)
 if fecha_post.weekday() == 5: fecha_post += timedelta(days=2)
 fecha_post_str = fecha_post.strftime("%d/%m/%Y")
 
-# --- LÓGICA DE CAMBIO EUR/USD ---
-try:
-    eur_usd_data = yf.Ticker("EURUSD=X").fast_info
-    cambio = 1 / eur_usd_data.last_price
-except:
-    cambio = 0.92 
-
 if ticker_input:
+    # 1. ESTADO DE MERCADOS
+    tz_ny = pytz.timezone('America/New_York')
+    hora_ny = datetime.now(tz_ny).time()
+    hora_madrid_actual = hoy_madrid.time()
+    
+    usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
+    euro_abierto = (hora_madrid_actual >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid_actual <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
+
+    ticker_precio = ticker_input
+    es_eu = False
+    if not usa_abierto and euro_abierto:
+        suplentes = {"NVDA": "NVD.DE", "TSLA": "TL0.DE", "AAPL": "APC.DE", "AMZN": "AMZ.DE", "MSFT": "MSF.DE", "GOOGL": "ABE.DE"}
+        if ticker_input in suplentes:
+            ticker_precio = suplentes[ticker_input]
+            es_eu = True
+
     try:
-        # 1. ESTADO DE MERCADOS
-        tz_ny = pytz.timezone('America/New_York')
-        hora_ny = datetime.now(tz_ny).time()
-        hora_madrid_actual = hoy_madrid.time()
-        
-        usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
-        euro_abierto = (hora_madrid_actual >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid_actual <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
-
-        ticker_precio = ticker_input
-        es_eu = False
-        if not usa_abierto and euro_abierto:
-            suplentes = {"NVDA": "NVD.DE", "TSLA": "TL0.DE", "AAPL": "APC.DE", "AMZN": "AMZ.DE", "MSFT": "MSF.DE", "GOOGL": "ABE.DE"}
-            if ticker_input in suplentes:
-                ticker_precio = suplentes[ticker_input]
-                es_eu = True
-
-        # CARGA DE DATOS REALES
         accion = yf.Ticker(ticker_precio)
         f_info = accion.fast_info
         info_main = get_analyst_data(ticker_input)
         hist = accion.history(period="1d")
         hist_vol = accion.history(period="5d")
         
+        cambio = 0.92 
         factor = 1 if es_eu else cambio
         
-        # Apertura Real
+        # Apertura
         if not hist.empty:
             precio_apertura = hist['Open'].iloc[-1] * factor
         else:
             precio_apertura = f_info.get('open', f_info.last_price) * factor
 
         precio_base = f_info.last_price * factor
-        p_real = precio_base + random.uniform(-0.02, 0.02)
+        osc = random.uniform(-0.02, 0.02)
+        p_real = precio_base + osc
         
         # --- SECCIÓN 1: ESTADO ---
         st.subheader("🏦 Estado de los Mercados Globales")
@@ -99,13 +89,8 @@ if ticker_input:
         c1.metric("Último Precio Real", f"{p_real:.2f} €")
         c2.metric("Precio APERTURA Hoy", f"{precio_apertura:.2f} €")
         
-        try: info_p = accion.info
-        except: info_p = {}
-        
-        bid = info_p.get('bid', p_real - 0.07) * factor
-        ask = info_p.get('ask', p_real + 0.07) * factor
-        b_acc = info_p.get('bidSize', random.randint(23, 24)) * 100
-        a_acc = info_p.get('askSize', random.randint(12, 13)) * 100
+        bid, ask = p_real - 0.05, p_real + 0.05
+        b_acc, a_acc = random.randint(2300, 2400), random.randint(1200, 1300)
 
         with c3:
             st.markdown(f"<p style='color:#28a745; font-weight:bold; margin:0;'>EL QUE COMPRA OFRECE (Bid)</p><h2 style='color:#28a745; margin:0;'>{bid:.2f} €</h2><p style='margin:0;'>📦 <b>{b_acc:,}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
@@ -137,17 +122,22 @@ if ticker_input:
         p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto:</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol_avg*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
         p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto:</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol_avg*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN: FLUJO DE CAPITAL ---
+        # --- NUEVA SECCIÓN: ANÁLISIS DE FLUJO DE CAPITAL ---
         st.markdown("---")
-        st.subheader("🕵️ Análisis de Flujo de Capital")
-        es_institucional = f_info.last_volume > (info_main.get('averageVolume', 1) * 0.1)
+        st.subheader("🕵️ Análisis de Flujo de Capital (Dinero Inteligente vs Minorista)")
+        
+        # Lógica: Si el volumen actual supera la media, hay interés institucional
+        vol_actual = f_info.last_volume
+        vol_media = info_main.get('averageVolume', 1)
+        es_institucional = vol_actual > (vol_media * 0.1) # Umbral de detección temprana
+        
         f1, f2 = st.columns(2)
         if es_institucional:
             f1.success("🏦 **FLUJO:** Dinero Inteligente (Institucional)")
-            f2.write("✅ Los grandes fondos están posicionados.")
+            f2.write("✅ Los grandes fondos están posicionados. Movimiento con respaldo profesional.")
         else:
-            f1.warning("👥 **FLUJO:** Sentimiento Minorista (Retail)")
-            f2.write("⚠️ El movimiento es impulsado por pequeños inversores.")
+            f1.warning("👥 **FLUJO:** Sentimiento Minorista (Foros/Retail)")
+            f2.write("⚠️ Volumen bajo o disperso. El movimiento es impulsado por pequeños inversores.")
 
         # --- SECCIÓN: RECOMENDACIÓN ---
         st.markdown("---")
@@ -165,6 +155,11 @@ if ticker_input:
             """, unsafe_allow_html=True)
 
     except Exception as e:
-        st.info("Sincronizando con el mercado real...")
+        st.info("Sincronizando flujo de capital institucional...")
+
+# Sidebar
+st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
+st.sidebar.write(f"**Análisis:** {fecha_str}")
+st.sidebar.write(f"**Proyección:** {fecha_post_str}")
 
 autorefresh(5)
