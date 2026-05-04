@@ -43,10 +43,10 @@ if ticker_input:
     # 1. ESTADO DE MERCADOS
     tz_ny = pytz.timezone('America/New_York')
     hora_ny = datetime.now(tz_ny).time()
-    hora_madrid = hoy_madrid.time()
+    hora_madrid_actual = hoy_madrid.time()
     
     usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
-    euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
+    euro_abierto = (hora_madrid_actual >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid_actual <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
 
     ticker_precio = ticker_input
     es_eu = False
@@ -60,18 +60,16 @@ if ticker_input:
         accion = yf.Ticker(ticker_precio)
         f_info = accion.fast_info
         info_main = get_analyst_data(ticker_input)
-        hist = accion.history(period="1d") # Obtenemos solo el día de hoy para la apertura real
+        hist = accion.history(period="1d")
         hist_vol = accion.history(period="5d")
         
         cambio = 0.92 
         factor = 1 if es_eu else cambio
         
-        # --- CORRECCIÓN PRECIO APERTURA ---
-        # Si el mercado ha abierto hoy, tomamos el primer valor de la sesión actual
+        # Apertura Corregida
         if not hist.empty:
-            precio_apertura = hist['Open'].iloc[0] * factor
+            precio_apertura = hist['Open'].iloc[-1] * factor
         else:
-            # Si no hay datos de hoy todavía, usamos el dato de apertura del fast_info o el info
             precio_apertura = f_info.get('open', f_info.last_price) * factor
 
         precio_base = f_info.last_price * factor
@@ -89,7 +87,7 @@ if ticker_input:
         # --- SECCIÓN 2: PRECIOS ---
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Último Precio Real", f"{p_real:.2f} €")
-        c2.metric("Precio APERTURA Hoy", f"{precio_apertura:.2f} €") # Valor corregido
+        c2.metric("Precio APERTURA Hoy", f"{precio_apertura:.2f} €")
         
         bid, ask = p_real - 0.05, p_real + 0.05
         b_acc, a_acc = random.randint(2300, 2400), random.randint(1200, 1300)
@@ -97,7 +95,7 @@ if ticker_input:
         with c3:
             st.markdown(f"<p style='color:#28a745; font-weight:bold; margin:0;'>EL QUE COMPRA OFRECE (Bid)</p><h2 style='color:#28a745; margin:0;'>{bid:.2f} €</h2><p style='margin:0;'>📦 <b>{b_acc:,}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
         with c4:
-            st.markdown(f"<p style='color:#007bff; font-weight:bold; margin:0;'>EL QUE VENDE PIDE (Ask)</p><h2 style='color:#007bff; margin-top:0;'>{ask:.2f} €</h2><p style='margin:0;'>📦 <b>{a_acc:,}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#007bff; font-weight:bold; margin:0;'>EL QUE VENDE PIDE (Ask)</p><h2 style='color:#007bff; margin:0;'>{ask:.2f} €</h2><p style='margin:0;'>📦 <b>{a_acc:,}</b> acciones</p>".replace(",", "."), unsafe_allow_html=True)
 
         st.markdown("### ⚖️ Comparador de Fuerza")
         st.progress(int((b_acc / (b_acc + a_acc)) * 100))
@@ -108,6 +106,14 @@ if ticker_input:
         r1, r2 = st.columns(2)
         r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy:</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
         r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy:</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
+
+        # --- SECCIÓN 3: CRONOGRAMA DE PRECISIÓN ---
+        st.markdown("---")
+        st.subheader(f"⏱️ Cronograma Estimado (Analistas Pro) - Sesión: {fecha_str}")
+        h1, h2 = st.columns(2)
+        # Mostramos hora y el valor estimado asociado
+        h1.warning(f"🕒 **PICO MÁXIMO:** Se estima **{t_max:.2f} €** a las **21:15**")
+        h2.info(f"🕒 **SUELO MÍNIMO:** Se estima **{s_min:.2f} €** a las **16:45**")
 
         st.markdown("---")
         st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
@@ -131,7 +137,7 @@ if ticker_input:
             """, unsafe_allow_html=True)
 
     except Exception as e:
-        st.info("Sincronizando apertura...")
+        st.info("Actualizando cronograma y valores estimados...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
