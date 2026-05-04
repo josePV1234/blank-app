@@ -18,7 +18,7 @@ def get_analyst_data(ticker):
     except:
         return {}
 
-# --- FUNCIÓN: AUTORREFRESCO (Ajustado a 5s para evitar parpadeo) ---
+# --- FUNCIÓN: AUTORREFRESCO (5s para estabilidad) ---
 def autorefresh(seconds):
     time.sleep(seconds)
     st.rerun()
@@ -111,18 +111,26 @@ if ticker_input:
         p1.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #00d4ff; border-radius:5px;'><h3 style='color:#00d4ff; margin:0;'>MÁXIMO Previsto:</h3><h1 style='color:#00d4ff; margin:0;'>{t_max + (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
         p2.markdown(f"<div style='background-color:#0e1117; padding:15px; border-left:5px solid #ffaa00; border-radius:5px;'><h3 style='color:#ffaa00; margin:0;'>MÍNIMO Previsto:</h3><h1 style='color:#ffaa00; margin:0;'>{s_min - (vol*0.2):.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN 6: RECOMENDACIÓN FINAL (ÚNICA) ---
+        # --- SECCIÓN 6: RECOMENDACIÓN FINAL (CORREGIDA PARA NO DUPLICAR) ---
         st.markdown("---")
         rec = info_main.get('recommendationKey', 'buy').lower()
         target_eur = 275.25 * factor
-        col_rec = "#28a745" if "buy" in rec else "#ffc107"
-        st.markdown(f"<div style='background-color:{col_rec}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {traducciones.get(rec, 'COMPRAR').upper()}</h1><h3 style='color:white;'>Precio Objetivo Analistas: {target_eur:.2f} €</h3></div>", unsafe_allow_html=True)
+        color_rec = "#28a745" if "buy" in rec else "#ffc107"
+        
+        # Bloque único de recomendación
+        st.markdown(f"""
+            <div style='background-color:{color_rec}; padding:20px; border-radius:10px; text-align:center;'>
+                <h1 style='color:white; margin:0;'>RECOMENDACIÓN: {traducciones.get(rec, 'COMPRAR').upper()}</h1>
+                <h3 style='color:white; margin-top:10px;'>Precio Objetivo Analistas: {target_eur:.2f} €</h3>
+            </div>
+        """, unsafe_allow_html=True)
 
     except Exception as e:
         st.info("Sincronizando terminal...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
+st.sidebar.write(f"**Análisis:** {fecha_str}")
 st.sidebar.write(f"**Proyección:** {fecha_post_str}")
 
 autorefresh(5)
