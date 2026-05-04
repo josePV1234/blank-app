@@ -5,26 +5,24 @@ import time
 import pytz 
 
 # Configuración de página
-st.set_page_config(page_title="Terminal Pro Trade Republic", page_icon="💹", layout="wide")
+st.set_page_config(page_title="Terminal Trade Republic", page_icon="💹", layout="wide")
 
-# --- CACHÉ DE DATOS ---
-@st.cache_data(ttl=10) # Reducido a 10s para máxima precisión
-def get_stock_data(ticker):
-    try:
-        # Añadimos el sufijo .LS para que coincida con Lang & Schwarz (Trade Republic)
-        if "." not in ticker:
-            ticker_ls = f"{ticker}.LS"
-        else:
-            ticker_ls = ticker
-            
-        t = yf.Ticker(ticker_ls)
-        # Si .LS no devuelve datos (ej. algunas americanas), usamos el ticker original
-        if t.fast_info.last_price is None:
-            t = yf.Ticker(ticker)
-            
-        return t
-    except:
-        return None
+# --- FUNCIÓN DE BÚSQUEDA ROBUSTA ---
+def get_stock_data(ticker_raw):
+    # Lista de sufijos por orden de prioridad para Trade Republic
+    sufijos = [".LS", ".DE", ""] 
+    
+    for sufijo in sufijos:
+        try:
+            ticker_test = f"{ticker_raw}{sufijo}"
+            accion = yf.Ticker(ticker_test)
+            # Forzamos una pequeña descarga para validar que el ticker existe y tiene datos
+            info = accion.info
+            if 'regularMarketPrice' in info or 'currentPrice' in info:
+                return accion, info
+        except:
+            continue
+    return None, None
 
 def autorefresh(seconds):
     time.sleep(seconds)
@@ -32,81 +30,51 @@ def autorefresh(seconds):
 
 st.title("💹 Terminal Real-Time (Sincronizado L&S)")
 
-# El usuario introduce el ticker normal (ej: SAP o NVDA)
-ticker_raw = st.text_input("Introduce el Ticker (ej: SAP, NVDA, ASML):", "SAP").upper()
+ticker_input = st.text_input("Introduce el Ticker (ej: SAP, NVDA, ASML):", "SAP").upper()
 
-tz_madrid = pytz.timezone('Europe/Madrid')
-hoy_madrid = datetime.now(tz_madrid)
-
-if ticker_raw:
-    accion = get_stock_data(ticker_raw)
+if ticker_input:
+    with st.spinner('Buscando en mercados europeos...'):
+        accion, info_full = get_stock_data(ticker_input)
     
-    if accion:
+    if accion and info_full:
         try:
-            f_info = accion.fast_info
-            info_full = accion.info
-            
-            # DATOS REALES (Sin cálculos aleatorios)
-            p_actual = f_info.last_price
-            p_apertura = f_info.open if f_info.open else p_actual
-            # En Trade Republic el bid/ask es real, aquí lo aproximamos con datos de mercado
-            bid = info_full.get('bid', p_actual - 0.02)
-            ask = info_full.get('ask', p_actual + 0.02)
-            
+            # Extraemos precios con fallback para evitar errores de None
+            p_actual = info_full.get('currentPrice') or info_full.get('regularMarketPrice')
+            p_apertura = info_full.get('open') or p_actual
+            bid = info_full.get('bid') or (p_actual * 0.998)
+            ask = info_full.get('ask') or (p_actual * 1.002)
             currency = info_full.get('currency', 'EUR')
 
-            # --- SECCIÓN 1: CABECERA ---
-            st.subheader(f"📊 {info_full.get('longName', ticker_raw)} ({currency})")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Último Precio", f"{p_actual:.2d} {currency}")
-            m2.metric("Apertura Hoy", f"{p_apertura:.2f} {currency}")
-            m3.info(f"Market: {info_full.get('exchange', 'L&S')}")
-
-            # --- SECCIÓN 2: BID / ASK (Como en Trade Republic) ---
-            st.markdown("---")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f"""
-                    <div style='background-color:#1e1e1e; padding:20px; border-radius:10px; border-left:8px solid #28a745;'>
-                        <p style='color:#28a745; font-weight:bold; margin:0;'>PRECIO COMPRA (ASK)</p>
-                        <h1 style='margin:0;'>{ask:.2f} {currency}</h1>
-                        <p style='font-size:0.8em; color:grey;'>Precio al que entrarías ahora</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            with c2:
-                st.markdown(f"""
-                    <div style='background-color:#1e1e1e; padding:20px; border-radius:10px; border-left:8px solid #ff4b4b;'>
-                        <p style='color:#ff4b4b; font-weight:bold; margin:0;'>PRECIO VENTA (BID)</p>
-                        <h1 style='margin:0;'>{bid:.2f} {currency}</h1>
-                        <p style='font-size:0.8em; color:grey;'>Precio al que saldrías ahora</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            # --- SECCIÓN 3: RANGOS DEL DÍA ---
-            st.markdown("---")
-            low_day = f_info.day_low
-            high_day = f_info.day_high
-            st.write(f"**Rango Diario:** {low_day:.2f} - {high_day:.2f}")
-            progreso = ((p_actual - low_day) / (high_day - low_day)) if high_day != low_day else 0.5
-            st.progress(min(max(progreso, 0.0), 1.0))
-
-            # --- ANÁLISIS DE VOLUMEN ---
-            vol_actual = f_info.last_volume
-            vol_media = info_full.get('averageVolume', 1)
+            # --- VISUALIZACIÓN ---
+            st.subheader(f"📊 {info_full.get('longName', ticker_input)} | Mercado: {info_full.get('exchange')}")
             
-            if vol_actual > (vol_media * 1.5):
-                st.success("🔥 **ALTA VOLATILIDAD:** El volumen actual es superior a la media. Movimiento institucional detectado.")
-            else:
-                st.info("💎 **FLUJO NORMAL:** El mercado se mueve con volúmenes estándar.")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Precio Actual", f"{p_actual:.2f} {currency}")
+            c2.metric("Apertura", f"{p_apertura:.2f} {currency}")
+            c3.write(f"**ISIN:** {info_full.get('isin', 'N/A')}")
 
+            st.markdown("---")
+            col_bid, col_ask = st.columns(2)
+            with col_bid:
+                st.success(f"**PRECIO VENTA (BID):** {bid:.2f} {currency}")
+                st.caption("Precio al que Trade Republic te compra la acción.")
+            with col_ask:
+                st.info(f"**PRECIO COMPRA (ASK):** {ask:.2f} {currency}")
+                st.caption("Precio al que tú compras la acción.")
+
+            # Barra de rango diario
+            low = info_full.get('dayLow', p_actual)
+            high = info_full.get('dayHigh', p_actual)
+            st.markdown(f"**Rango del día:** {low:.2f} --- ● --- {high:.2f}")
+            
         except Exception as e:
-            st.error(f"Error obteniendo datos en tiempo real: {e}")
+            st.error(f"Error al procesar datos: {e}")
     else:
-        st.error("No se encontró el Ticker. Prueba con el nombre completo.")
+        st.error(f"No se pudo conectar con el mercado para '{ticker_input}'. Verifica que el ticker sea correcto.")
 
-# Sidebar
-st.sidebar.write(f"**Última actualización:** {hoy_madrid.strftime('%H:%M:%S')}")
-st.sidebar.markdown("---")
-st.sidebar.caption("Sincronizado con Lang & Schwarz (Exchange de Trade Republic)")
+# Sidebar info
+st.sidebar.write(f"Refresco automático: 10s")
+st.sidebar.write(f"Hora Local: {datetime.now().strftime('%H:%M:%S')}")
 
-autorefresh(5)
+time.sleep(10)
+st.rerun()
