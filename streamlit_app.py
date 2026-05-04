@@ -9,7 +9,7 @@ import random
 # Configuración de página
 st.set_page_config(page_title="Terminal Pro IA - Estrategia Total", page_icon="💹", layout="wide")
 
-# --- CACHÉ DE DATOS PESADOS (Analistas) ---
+# --- CACHÉ DE DATOS ANALISTAS ---
 @st.cache_data(ttl=300)
 def get_analyst_data(ticker):
     try:
@@ -48,7 +48,6 @@ if ticker_input:
     usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
     euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
 
-    # 2. TICKER DE PRECIO
     ticker_precio = ticker_input
     es_eu = False
     if not usa_abierto and euro_abierto:
@@ -64,7 +63,7 @@ if ticker_input:
         hist = accion.history(period="5d")
         vol = (hist['High'] - hist['Low']).mean()
         
-        cambio = 0.92 # Ajuste EUR/USD
+        cambio = 0.92 
         factor = 1 if es_eu else cambio
         precio_base = f_info.last_price * factor
         osc = random.uniform(-0.02, 0.02)
@@ -78,29 +77,29 @@ if ticker_input:
         m3.info(f"📡 Fuente: {'EUROPA' if es_eu else 'USA'} | ⏱️ Pulso: 2s")
         st.markdown("---")
 
-        # --- SECCIÓN 2: PRECIOS (LIMPIEZA DE FILAS DUPLICADAS) ---
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Último Precio Real", f"{p_real:.2f} €")
-        c2.metric("Precio APERTURA", f"{(info_main.get('regularMarketOpen', f_info.last_price)*factor):.2f} €")
-        
-        bid = p_real - 0.05
-        ask = p_real + 0.05
-        # Mantenemos los valores de acciones que se veían en tu imagen
-        b_acc = random.randint(2300, 2400)
-        a_acc = random.randint(1200, 1300)
+        # --- SECCIÓN 2: PRECIOS (LIMPIEZA TOTAL DE FILAS) ---
+        # Usamos st.columns dentro de un contenedor limpio
+        container_precios = st.container()
+        with container_precios:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Último Precio Real", f"{p_real:.2f} €")
+            c2.metric("Precio APERTURA", f"{(info_main.get('regularMarketOpen', f_info.last_price)*factor):.2f} €")
+            
+            bid = p_real - 0.05
+            ask = p_real + 0.05
+            b_acc = random.randint(2300, 2400)
+            a_acc = random.randint(1200, 1300)
 
-        # HTML LIMPIO: Una sola fila por columna
-        c3.markdown(f"""
-            <p style='color:#28a745; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>
-            <h2 style='color:#28a745; margin-top:0; margin-bottom:0;'>{bid:.2f} €</h2>
-            <p style='margin-top:0;'>📦 <b>{b_acc:,}</b> acciones</p>
-        """.replace(",", "."), unsafe_allow_html=True)
+            # Usamos st.write con formato directo para evitar acumulaciones de HTML
+            with c3:
+                st.markdown(f"<p style='color:#28a745; font-weight:bold; margin:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#28a745; margin:0;'>{bid:.2f} €</h2>", unsafe_allow_html=True)
+                st.write(f"📦 **{b_acc:,}**. acciones".replace(",", "."))
 
-        c4.markdown(f"""
-            <p style='color:#007bff; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>
-            <h2 style='color:#007bff; margin-top:0; margin-bottom:0;'>{ask:.2f} €</h2>
-            <p style='margin-top:0;'>📦 <b>{a_acc:,}</b> acciones</p>
-        """.replace(",", "."), unsafe_allow_html=True)
+            with c4:
+                st.markdown(f"<p style='color:#007bff; font-weight:bold; margin:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{ask:.2f} €</h2>", unsafe_allow_html=True)
+                st.write(f"📦 **{a_acc:,}**. acciones".replace(",", "."))
 
         # --- SECCIÓN 3: FUERZA ---
         st.markdown("### ⚖️ Comparador de Fuerza")
@@ -126,10 +125,10 @@ if ticker_input:
         rec = info_main.get('recommendationKey', 'buy').lower()
         target_eur = 275.25 * factor
         col_rec = "#28a745" if "buy" in rec else "#ffc107"
-        st.markdown(f"<div style='background-color:{col_rec}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {traducciones.get(rec, 'COMPRAR').upper()}</h1><h3 style='color:white;'>Precio Objetivo: {target_eur:.2f} €</h3></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color:{col_rec}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {traducciones.get(rec, 'COMPRAR').upper()}</h1><h3 style='color:white;'>Precio Objetivo Analistas: {target_eur:.2f} €</h3></div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.info("Sincronizando terminal...")
+        st.info("Sincronizando flujo de datos...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
