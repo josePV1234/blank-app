@@ -15,7 +15,7 @@ def autorefresh(seconds):
 
 st.title("💹 Terminal de Bolsa en Tiempo Real")
 
-ticker = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "NVDA").upper()
+ticker_input = st.text_input("Introduce el Ticker (ej: NVDA, TSLA, SAN):", "NVDA").upper()
 
 # --- DICCIONARIO DE TRADUCCIÓN ---
 traducciones = {
@@ -29,16 +29,9 @@ tz_madrid = pytz.timezone('Europe/Madrid')
 hoy_madrid = datetime.now(tz_madrid)
 dia_semana = hoy_madrid.weekday() 
 
-if dia_semana >= 5: 
-    fecha_analisis = hoy_madrid + timedelta(days=(7 - dia_semana))
-else:
-    fecha_analisis = hoy_madrid
-fecha_str = fecha_analisis.strftime("%d/%m/%Y")
-
-# --- LÓGICA DÍA POSTERIOR ---
-fecha_posterior = fecha_analisis + timedelta(days=1)
-if fecha_posterior.weekday() == 5:
-    fecha_posterior += timedelta(days=2)
+fecha_str = hoy_madrid.strftime("%d/%m/%Y")
+fecha_posterior = hoy_madrid + timedelta(days=1)
+if fecha_posterior.weekday() == 5: fecha_posterior += timedelta(days=2)
 fecha_post_str = fecha_posterior.strftime("%d/%m/%Y")
 
 # --- LÓGICA DE CAMBIO EUR/USD ---
@@ -48,44 +41,60 @@ try:
 except:
     cambio = 0.92 
 
-if ticker:
-    with st.spinner(f'Actualizando datos de {ticker}...'):
+if ticker_input:
+    with st.spinner(f'Actualizando datos...'):
         try:
-            accion = yf.Ticker(ticker)
-            f_info = accion.fast_info
-            hist = accion.history(period="5d")
-            try: info = accion.info
-            except: info = {}
-
-            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS (AJUSTADO A 08:00) ---
-            st.subheader("🏦 Estado de los Mercados Globales")
+            # --- DETERMINAR ESTADO DE MERCADOS ---
             hora_madrid = hoy_madrid.time()
             tz_ny = pytz.timezone('America/New_York')
             hora_ny = datetime.now(tz_ny).time()
             
-            # Ajuste: Marcamos abierto desde las 08:00 para pre-mercado
             usa_abierto = (hora_ny >= datetime.strptime("09:30", "%H:%M").time() and hora_ny <= datetime.strptime("16:00", "%H:%M").time() and dia_semana < 5)
             euro_abierto = (hora_madrid >= datetime.strptime("08:00", "%H:%M").time() and hora_madrid <= datetime.strptime("17:30", "%H:%M").time() and dia_semana < 5)
-            tr_abierto = (hora_madrid >= datetime.strptime("07:30", "%H:%M").time() and hora_madrid <= datetime.strptime("23:00", "%H:%M").time() and dia_semana < 5)
+            
+            # --- FUNCIÓN DE CONMUTACIÓN DE MERCADO ---
+            # Si es una acción USA y el mercado USA está cerrado pero el Europeo abierto:
+            # Intentamos obtener el ticker equivalente en Europa (XETRA)
+            ticker_final = ticker_input
+            es_suplente = False
+            
+            if not usa_abierto and euro_abierto:
+                # Mapeo simple para tickers populares en Europa (Frankfurt/Xetra)
+                suplentes = {"NVDA": "NVD.DE", "TSLA": "TL0.DE", "AAPL": "APC.DE", "AMZN": "AMZ.DE", "MSFT": "MSF.DE", "GOOGL": "ABE.DE"}
+                if ticker_input in suplentes:
+                    ticker_final = suplentes[ticker_input]
+                    es_suplente = True
 
+            accion = yf.Ticker(ticker_final)
+            f_info = accion.fast_info
+            hist = accion.history(period="5d")
+            info = accion.info
+
+            # --- SECCIÓN 1: ESTADO DE LOS MERCADOS ---
+            st.subheader("🏦 Estado de los Mercados Globales")
             col_m1, col_m2, col_m3 = st.columns(3)
             col_m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
             col_m2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
-            col_m3.info(f"**Trade Republic:** :{'green' if tr_abierto else 'red'}[{'ACTIVO' if tr_abierto else 'INACTIVO'}]")
+            
+            msg_fuente = "📡 Datos: EUROPA (XETRA)" if es_suplente else "📡 Datos: USA (NASDAQ/NYSE)"
+            col_m3.info(msg_fuente)
 
             st.markdown("---")
 
-            # --- SECCIÓN 2: PRECIOS Y ÓRDENES PROGRAMADAS ---
+            # --- SECCIÓN 2: PRECIOS Y ÓRDENES (ACTUALIZADOS) ---
             col1, col2, col3, col4 = st.columns(4)
-            precio_real_eur = f_info.last_price * cambio
             
-            bid_val = info.get('bid', f_info.last_price) * cambio
-            ask_val = info.get('ask', f_info.last_price) * cambio
+            # Si usamos el ticker europeo, el precio ya viene en EUR (cambio = 1)
+            factor = 1 if es_suplente else cambio
+            
+            precio_real_eur = f_info.last_price * factor
+            bid_val = info.get('bid', f_info.last_price) * factor
+            ask_val = info.get('ask', f_info.last_price) * factor
             bid_size = info.get('bidSize', 0) * 100 
             ask_size = info.get('askSize', 0) * 100
 
             col1.metric("Último Precio Real", f"{precio_real_eur:.2f} €")
-            col2.metric("Precio APERTURA", f"{(info.get('regularMarketOpen', f_info.last_price)*cambio):.2f} €")
+            col2.metric("Precio APERTURA", f"{(info.get('regularMarketOpen', f_info.last_price)*factor):.2f} €")
             
             col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
             col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{bid_val:.2f} €</h2>", unsafe_allow_html=True)
@@ -104,18 +113,13 @@ if ticker:
                 c_izq, c_der = st.columns(2)
                 c_izq.write(f"🟢 **Ganas de comprar:** {porcentaje_compra:.1f}%")
                 c_der.write(f"🔵 **Ganas de vender:** {100-porcentaje_compra:.1f}%")
-                
-                if porcentaje_compra > 60:
-                    st.success("💪 **MUCHOS COMPRADORES:** Hay una fila muy larga de gente queriendo comprar.")
-                elif porcentaje_compra < 40:
-                    st.error("📉 **MUCHOS VENDEDORES:** Hay demasiada gente queriendo vender.")
             else:
-                st.warning("⚖️ **SIN DATOS DE ÓRDENES:** Mercado cerrado o sin volumen en tiempo real.")
+                st.warning("⚖️ Esperando datos de volumen del mercado activo...")
 
             # --- SECCIÓN 4: RANGO DE PRECIOS HOY ---
             st.markdown("---")
             st.subheader(f"📊 Rango de Precios Estimado - Sesión: {fecha_str}")
-            volatilidad_avg = (hist['High'] - hist['Low']).mean() * cambio
+            volatilidad_avg = (hist['High'] - hist['Low']).mean() * factor
             techo_max = precio_real_eur + (volatilidad_avg * 0.85)
             suelo_min = precio_real_eur - (volatilidad_avg * 0.70)
             
@@ -135,27 +139,25 @@ if ticker:
 
             # --- SECCIÓN: DECISIÓN FINAL ---
             st.markdown("---")
-            st.subheader(f"🚩 DECISIÓN FINAL PARA EL DÍA: {fecha_str}")
+            st.subheader(f"🚩 RECOMENDACIÓN")
             rec_key = info.get('recommendationKey', 'none').lower()
             color_f = "#28a745" if rec_key in ['strong_buy', 'buy'] else "#dc3545" if rec_key in ['sell', 'strong_sell'] else "#ffc107"
             decision = traducciones.get(rec_key, "MANTENER / NEUTRAL")
-            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>RECOMENDACIÓN: {decision}</h1></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color:{color_f}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>{decision}</h1></div>", unsafe_allow_html=True)
 
             # --- SECCIÓN: OPERATIVA SUGERIDA ---
             st.markdown("---")
             st.subheader(f"⏱️ Operativa Sugerida para el {fecha_str}")
             op1, op2 = st.columns(2)
-            op1.info(f"**Mayor SUBIDA esperada ({fecha_str}):** +{(techo_max-precio_real_eur):.2f} €")
-            op1.error(f"**Mayor BAJADA esperada ({fecha_str}):** -{(precio_real_eur-suelo_min):.2f} €")
-            op2.write(f"📥 **Compra ideal ({fecha_str}):** 15:35 | 📤 **Venta ideal ({fecha_str}):** 21:40")
+            op1.info(f"**Mayor SUBIDA esperada:** +{(techo_max-precio_real_eur):.2f} €")
+            op1.error(f"**Mayor BAJADA esperada:** -{(precio_real_eur-suelo_min):.2f} €")
+            op2.write(f"📥 **Compra:** 15:35 | 📤 **Venta:** 21:40")
 
         except Exception as e:
-            st.error(f"Error en la conexión con los datos. Reintentando...")
+            st.error(f"Conectando con el mercado...")
 
 # Sidebar
-st.sidebar.write(f"**Reloj Madrid:** {hoy_madrid.strftime('%H:%M:%S')}")
-st.sidebar.write(f"**Análisis:** {fecha_str}")
-st.sidebar.write(f"**Proyección:** {fecha_post_str}")
+st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
 st.sidebar.caption(f"Cambio: 1 USD = {cambio:.4f} EUR")
 
 autorefresh(30)
