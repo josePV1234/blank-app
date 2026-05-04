@@ -5,14 +5,9 @@ import numpy as np
 import time
 import pytz 
 import random
-import pandas as pd
 
 # Configuración de página
 st.set_page_config(page_title="Terminal Pro IA - Estrategia Total", page_icon="💹", layout="wide")
-
-# --- GESTIÓN DE HISTORIAL PARA EL GRÁFICO ---
-if 'history_prices' not in st.session_state:
-    st.session_state.history_prices = []
 
 # --- FUNCIÓN: AUTORREFRESCO (2 segundos) ---
 def autorefresh(seconds):
@@ -74,7 +69,7 @@ if ticker_input:
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.markdown(f"**Bolsa Europa:** :{'green' if euro_abierto else 'red'}[{'ABIERTA' if euro_abierto else 'CERRADA'}]")
         col_m2.markdown(f"**Bolsa USA:** :{'green' if usa_abierto else 'red'}[{'ABIERTA' if usa_abierto else 'CERRADA'}]")
-        col_m3.info(f"📡 Fuente: {'EUROPA' if es_suplente else 'USA'} | ⏱️ Pulso: 2s")
+        col_m3.info(f"📡 Fuente: {'EUROPA' if es_suplente else 'USA'} | ⏱️ Refresco: 2s")
 
         st.markdown("---")
 
@@ -82,15 +77,10 @@ if ticker_input:
         factor = 1 if es_suplente else cambio
         precio_base = f_info.last_price * factor
         
-        # Simulación de movimiento de 2 segundos para Bid/Ask realistas
-        oscilacion = random.uniform(-0.03, 0.03)
+        # Simulación de movimiento constante cada 2s para Bid/Ask
+        oscilacion = random.uniform(-0.02, 0.02)
         bid_final = precio_base - 0.07 + oscilacion
         ask_final = precio_base + 0.07 + oscilacion
-        
-        # Guardar en historial para el gráfico (máximo 50 puntos)
-        st.session_state.history_prices.append(precio_base + oscilacion)
-        if len(st.session_state.history_prices) > 50:
-            st.session_state.history_prices.pop(0)
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Último Precio Real", f"{precio_base + oscilacion:.2f} €")
@@ -98,25 +88,20 @@ if ticker_input:
         
         col3.markdown(f"<p style='color:#28a745; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE COMPRA OFRECE (Bid)</p>", unsafe_allow_html=True)
         col3.markdown(f"<h2 style='color:#28a745; margin-top:0;'>{bid_final:.2f} €</h2>", unsafe_allow_html=True)
-        col3.write(f"📦 **{info.get('bidSize', 15)*100:,.0f}**. acciones")
+        col3.write(f"📦 **{info.get('bidSize', 15)*100:,.0f}**. acciones".replace(",", "."))
         
         col4.markdown(f"<p style='color:#007bff; font-size:16px; font-weight:bold; margin-bottom:0;'>EL QUE VENDE PIDE (Ask)</p>", unsafe_allow_html=True)
         col4.markdown(f"<h2 style='color:#007bff; margin-top:0;'>{ask_final:.2f} €</h2>", unsafe_allow_html=True)
-        col4.write(f"📦 **{info.get('askSize', 12)*100:,.0f}**. acciones")
+        col4.write(f"📦 **{info.get('askSize', 12)*100:,.0f}**. acciones".replace(",", "."))
 
-        # --- NUEVO: GRÁFICO DE PULSO EN TIEMPO REAL ---
-        st.markdown("### 📈 Pulso del Mercado (Últimos minutos)")
-        if len(st.session_state.history_prices) > 1:
-            df_grafico = pd.DataFrame(st.session_state.history_prices, columns=['Precio'])
-            st.line_chart(df_grafico, height=150, use_container_width=True)
-
-        # --- SECCIÓN 3: FUERZA ---
+        # --- SECCIÓN 3: COMPARADOR DE FUERZA ---
         st.markdown("### ⚖️ Comparador de Fuerza")
         total = (info.get('bidSize', 15) + info.get('askSize', 12))
         porc = (info.get('bidSize', 15) / total) * 100
         st.progress(int(porc))
+        st.write(f"🟢 **Compra:** {porc:.1f}% | 🔵 **Venta:** {100-porc:.1f}%")
 
-        # --- SECCIÓN 4: RANGOS ---
+        # --- SECCIÓN 4: RANGO DE PRECIOS HOY ---
         st.markdown("---")
         vol = (hist['High'] - hist['Low']).mean() * factor
         t_max = precio_base + (vol * 0.85)
@@ -126,7 +111,7 @@ if ticker_input:
         r1.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #28a745; border-radius:5px;'><h3 style='color:#28a745; margin:0;'>MÁXIMO hoy ({fecha_str}):</h3><h1 style='color:#28a745; margin:0;'>{t_max:.2f} €</h1></div>", unsafe_allow_html=True)
         r2.markdown(f"<div style='background-color:#1e1e1e; padding:15px; border-left:5px solid #ff4b4b; border-radius:5px;'><h3 style='color:#ff4b4b; margin:0;'>MÍNIMO hoy ({fecha_str}):</h3><h1 style='color:#ff4b4b; margin:0;'>{s_min:.2f} €</h1></div>", unsafe_allow_html=True)
 
-        # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR (MANTENIDA) ---
+        # --- SECCIÓN 5: PREDICCIÓN DÍA POSTERIOR ---
         st.markdown("---")
         st.subheader(f"🔮 Predicción IA - Sesión Posterior: {fecha_post_str}")
         p1, p2 = st.columns(2)
@@ -140,7 +125,7 @@ if ticker_input:
         st.markdown(f"<div style='background-color:{color}; padding:20px; border-radius:10px; text-align:center;'><h1 style='color:white; margin:0;'>{traducciones.get(rec, 'COMPRAR').upper()}</h1></div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.info("Sincronizando flujo...")
+        st.info("Actualizando precios...")
 
 # Sidebar
 st.sidebar.write(f"**Reloj:** {hoy_madrid.strftime('%H:%M:%S')}")
